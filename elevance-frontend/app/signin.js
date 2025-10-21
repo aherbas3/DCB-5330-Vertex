@@ -13,20 +13,21 @@ import { auth } from "../firebaseConfig";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 
-// Regular expression to validate email format
-const isValidEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+// ✅ Use your actual local IP and backend port
+const BACKEND_URL = "http://143.215.52.58:5050";
+
+// Helper: validate email
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export default function SignScreen() {
   const [activeTab, setActiveTab] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Handle Sign Up or Sign In
+  // 🔹 Handle signup or signin
   const handleAuth = async () => {
     if (!email || !password) {
       Alert.alert("Missing Fields", "Please enter both email and password.");
@@ -39,36 +40,65 @@ export default function SignScreen() {
     }
 
     if (password.length < 8) {
-      Alert.alert(
-        "Weak Password",
-        "Password must be at least 8 characters long."
-      );
+      Alert.alert("Weak Password", "Password must be at least 8 characters long.");
       return;
     }
 
     console.log(`🔹 Attempting ${activeTab} for:`, email);
 
     try {
+      let userCredential;
+
       if (activeTab === "signup") {
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email.trim(),
-          password
-        );
-        console.log("✅ User registered:", userCredential.user.email);
+        // 🟢 Create new user in Firebase
+        userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         Alert.alert("Success", "Account created successfully!");
       } else {
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          email.trim(),
-          password
-        );
-        console.log("✅ User signed in:", userCredential.user.email);
+        // 🔵 Sign in existing user
+        userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
         Alert.alert("Welcome Back!", "You are now signed in.");
       }
+
+      // ✅ Get Firebase ID token
+      const token = await userCredential.user.getIdToken();
+      console.log("🪪 JWT Token:", token);
+
+      // ✅ Send token to backend
+      const endpoint = activeTab === "signup" ? "/signup" : "/login";
+      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({})); // Prevent JSON parse error
+      console.log("✅ Backend Response:", data);
+
+      if (response.ok) {
+        Alert.alert("Success", data.message || "Authentication complete!");
+      } else {
+        Alert.alert("Error", data.error || "Something went wrong.");
+      }
     } catch (error) {
-      console.error("❌ Auth Error:", error.code, error.message);
-      Alert.alert("Authentication Error", `${error.code}\n${error.message}`);
+      console.error("❌ Auth Error:", error.code || error.message);
+      Alert.alert("Authentication Error", error.message || "An error occurred.");
+    }
+  };
+
+  // 🔹 Forgot password
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert("Enter Email", "Please enter your email to reset password.");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      Alert.alert("Password Reset", "A password reset link has been sent.");
+    } catch (error) {
+      console.error("❌ Password Reset Error:", error);
+      Alert.alert("Error", error.message);
     }
   };
 
@@ -146,6 +176,13 @@ export default function SignScreen() {
         </Text>
       </TouchableOpacity>
 
+      {/* Forgot Password */}
+      {activeTab === "signin" && (
+        <TouchableOpacity onPress={handleForgotPassword}>
+          <Text style={styles.forgotText}>Forgot Password?</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Terms and Privacy */}
       <Text style={styles.footerText}>
         By clicking continue, you agree to our{" "}
@@ -156,6 +193,7 @@ export default function SignScreen() {
   );
 }
 
+// 🎨 Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -215,7 +253,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F8F8",
   },
   button: {
-    backgroundColor: "#000000", // black
+    backgroundColor: "#000000",
     width: "100%",
     paddingVertical: 15,
     borderRadius: 12,
@@ -226,6 +264,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+  },
+  forgotText: {
+    color: "#0047AB",
+    marginTop: 10,
+    textDecorationLine: "underline",
   },
   footerText: {
     marginTop: 15,
