@@ -12,6 +12,7 @@ export default function Layout() {
 
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (currentUser) => {
+            console.log("🔍 _layout.js: Auth state changed, user:", currentUser ? currentUser.email : "null");
             setUser(currentUser);
             setReady(true);
         });
@@ -22,8 +23,15 @@ export default function Layout() {
         if (!ready) return;
 
         const inAuthGroup = segments[0] === "signin";
-        if (user && inAuthGroup) router.replace("/success");
-        else if (!user && !inAuthGroup) router.replace("/signin");
+        console.log("🔍 _layout.js: Navigation check - user:", user ? user.email : "null", "current route:", segments[0]);
+        
+        if (user && inAuthGroup) {
+            console.log("🔄 _layout.js: Redirecting logged-in user from signin to profile");
+            router.replace("/profile");
+        } else if (!user && !inAuthGroup) {
+            console.log("🔄 _layout.js: Redirecting logged-out user to signin");
+            router.replace("/signin");
+        }
     }, [user, ready, segments]);
 
     if (!ready) {
