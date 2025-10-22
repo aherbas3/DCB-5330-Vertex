@@ -59,7 +59,7 @@ export default function AuthScreen() {
                 console.log("Backend sync result:", syncResult);
 
 
-                router.replace("/success");
+                router.replace("/profile");
 
             } catch (syncErr) {
                 console.error("Backend sync failed:", syncErr);
@@ -67,7 +67,7 @@ export default function AuthScreen() {
                 showAlert(
                     "Partial Success",
                     "Signed in but profile sync failed. You can still continue.",
-                    [{ text: "OK", onPress: () => router.replace("/success") }]
+                    [{ text: "OK", onPress: () => router.replace("/profile") }]
                 );
             }
 
