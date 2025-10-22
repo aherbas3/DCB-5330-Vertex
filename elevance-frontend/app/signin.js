@@ -1,284 +1,165 @@
 import React, { useState } from "react";
+import { View, Text, Alert, Image, StyleSheet } from "react-native";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Alert,
-} from "react-native";
-import { StatusBar } from "expo-status-bar";
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+} from "firebase/auth";
 import { auth } from "../firebaseConfig";
 import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-} from "firebase/auth";
+    syncUser,
+    isValidEmail,
+    isStrongPassword,
+    BACKEND_URL,
+} from "./utils/backend";
+import { InputField, PrimaryButton, DebugBanner } from "./utils/components";
+import { useRouter } from "expo-router";
 
-// ✅ Use your actual local IP and backend port
-const BACKEND_URL = "http://143.215.52.58:5050";
+export default function AuthScreen() {
+    const router = useRouter();
+    const [mode, setMode] = useState("signup");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [loading, setLoading] = useState(false);
 
-// Helper: validate email
-const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const handleAuth = async () => {
+        try {
+            // 🧠 Client-side validations
+            if (!isValidEmail(email)) {
+                Alert.alert("Invalid Email", "Please enter a valid email address.");
+                return;
+            }
+            if (!isStrongPassword(password)) {
+                Alert.alert(
+                    "Weak Password",
+                    "Please increase password length to at least 6 characters."
+                );
+                return;
+            }
 
-export default function SignScreen() {
-  const [activeTab, setActiveTab] = useState("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+            setLoading(true);
+            let cred;
 
-  // 🔹 Handle signup or signin
-  const handleAuth = async () => {
-    if (!email || !password) {
-      Alert.alert("Missing Fields", "Please enter both email and password.");
-      return;
-    }
+            if (mode === "signup") {
+                cred = await createUserWithEmailAndPassword(auth, email, password);
+            } else {
+                cred = await signInWithEmailAndPassword(auth, email, password);
+            }
+            //TODO Not working
 
-    if (!isValidEmail(email)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address.");
-      return;
-    }
+            const token = await cred.user.getIdToken();
+            await syncUser(token);
 
-    if (password.length < 8) {
-      Alert.alert("Weak Password", "Password must be at least 8 characters long.");
-      return;
-    }
+            router.replace("/success");
+        } catch (err) {
+            console.error("Auth error:", err);
 
-    console.log(`🔹 Attempting ${activeTab} for:`, email);
+            let msg = "An unexpected error occurred. Please try again.";
 
-    try {
-      let userCredential;
+            if (err.code === "auth/email-already-in-use") {
+                msg =
+                    "Email is already in our database. Please use the Sign In option instead.";
+            } else if (err.code === "auth/invalid-email") {
+                msg = "Invalid email format. Please check your email address.";
+            } else if (err.code === "auth/user-not-found") {
+                msg = "Email is not recognized. Please check or sign up first.";
+            } else if (err.code === "auth/wrong-password") {
+                msg = "Invalid password. Please try again.";
+            } else if (err.code === "auth/invalid-credential") {
+                msg = "Invalid email or password.";
+            } else if (err.code === "auth/weak-password") {
+                msg = "Password too weak. Please use at least 6 characters.";
+            }
 
-      if (activeTab === "signup") {
-        // 🟢 Create new user in Firebase
-        userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        Alert.alert("Success", "Account created successfully!");
-      } else {
-        // 🔵 Sign in existing user
-        userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-        Alert.alert("Welcome Back!", "You are now signed in.");
-      }
+            Alert.alert("Authentication Error", msg);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-      // ✅ Get Firebase ID token
-      const token = await userCredential.user.getIdToken();
-      console.log("🪪 JWT Token:", token);
+    const handleTestBackend = async () => {
+        try {
+            const res = await fetch(`${BACKEND_URL}/`);
+            const data = await res.json();
+            Alert.alert("Backend Status", JSON.stringify(data));
+        } catch (err) {
+            Alert.alert("Backend Error", err.message);
+        }
+    };
 
-      // ✅ Send token to backend
-      const endpoint = activeTab === "signup" ? "/signup" : "/login";
-      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+    return (
+        <View style={styles.container}>
+            <Image
+                source={require("../assets/elevance-logo.png")}
+                style={{ width: 180, height: 60, marginBottom: 20 }}
+                resizeMode="contain"
+            />
 
-      const data = await response.json().catch(() => ({})); // Prevent JSON parse error
-      console.log("✅ Backend Response:", data);
+            <DebugBanner backendUrl={BACKEND_URL} onTest={handleTestBackend} />
 
-      if (response.ok) {
-        Alert.alert("Success", data.message || "Authentication complete!");
-      } else {
-        Alert.alert("Error", data.error || "Something went wrong.");
-      }
-    } catch (error) {
-      console.error("❌ Auth Error:", error.code || error.message);
-      Alert.alert("Authentication Error", error.message || "An error occurred.");
-    }
-  };
+            {/* 🔄 Mode Switch */}
+            <View style={styles.tabContainer}>
+                <Text
+                    style={[styles.tab, mode === "signin" && styles.activeTab]}
+                    onPress={() => setMode("signin")}
+                >
+                    Sign In
+                </Text>
+                <Text
+                    style={[styles.tab, mode === "signup" && styles.activeTab]}
+                    onPress={() => setMode("signup")}
+                >
+                    Sign Up
+                </Text>
+            </View>
 
-  // 🔹 Forgot password
-  const handleForgotPassword = async () => {
-    if (!email) {
-      Alert.alert("Enter Email", "Please enter your email to reset password.");
-      return;
-    }
-    try {
-      await sendPasswordResetEmail(auth, email.trim());
-      Alert.alert("Password Reset", "A password reset link has been sent.");
-    } catch (error) {
-      console.error("❌ Password Reset Error:", error);
-      Alert.alert("Error", error.message);
-    }
-  };
+            <InputField label="Email" value={email} onChangeText={setEmail} />
+            <InputField
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+            />
 
-  console.log("Firebase connected:", !!auth);
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-
-      {/* Logo */}
-      <Image
-        source={require("../assets/elevance-logo.png")}
-        style={styles.logo}
-        resizeMode="contain"
-      />
-
-      {/* Tabs */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "signin" && styles.activeTab]}
-          onPress={() => setActiveTab("signin")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "signin" && styles.activeTabText,
-            ]}
-          >
-            Sign In
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "signup" && styles.activeTab]}
-          onPress={() => setActiveTab("signup")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "signup" && styles.activeTabText,
-            ]}
-          >
-            Sign Up
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Email Field */}
-      <Text style={styles.label}>Email</Text>
-      <TextInput
-        placeholder="Enter your email"
-        placeholderTextColor="#888"
-        style={styles.input}
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-      />
-
-      {/* Password Field */}
-      <Text style={styles.label}>Password</Text>
-      <TextInput
-        placeholder="Enter your password"
-        placeholderTextColor="#888"
-        style={styles.input}
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      {/* Continue Button */}
-      <TouchableOpacity style={styles.button} onPress={handleAuth}>
-        <Text style={styles.buttonText}>
-          {activeTab === "signin" ? "Sign In" : "Sign Up"}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Forgot Password */}
-      {activeTab === "signin" && (
-        <TouchableOpacity onPress={handleForgotPassword}>
-          <Text style={styles.forgotText}>Forgot Password?</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Terms and Privacy */}
-      <Text style={styles.footerText}>
-        By clicking continue, you agree to our{" "}
-        <Text style={styles.linkText}>Terms of Service</Text> and{" "}
-        <Text style={styles.linkText}>Privacy Policy</Text>
-      </Text>
-    </View>
-  );
+            <PrimaryButton
+                title={
+                    loading
+                        ? "Processing..."
+                        : mode === "signup"
+                            ? "Sign Up"
+                            : "Sign In"
+                }
+                onPress={handleAuth}
+                loading={loading}
+            />
+        </View>
+    );
 }
 
-// 🎨 Styles
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  logo: {
-    width: 180,
-    height: 60,
-    marginBottom: 30,
-  },
-  tabContainer: {
-    flexDirection: "row",
-    backgroundColor: "#F0F0F0",
-    borderRadius: 30,
-    padding: 3,
-    marginBottom: 30,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 30,
-    alignItems: "center",
-  },
-  activeTab: {
-    backgroundColor: "#ffffff",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  tabText: {
-    color: "#888",
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  activeTabText: {
-    color: "#002B5C",
-    fontWeight: "700",
-  },
-  label: {
-    alignSelf: "flex-start",
-    fontWeight: "600",
-    color: "#002B5C",
-    marginBottom: 6,
-  },
-  input: {
-    width: "100%",
-    height: 50,
-    borderColor: "#E0E0E0",
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    marginBottom: 20,
-    backgroundColor: "#F8F8F8",
-  },
-  button: {
-    backgroundColor: "#000000",
-    width: "100%",
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  forgotText: {
-    color: "#0047AB",
-    marginTop: 10,
-    textDecorationLine: "underline",
-  },
-  footerText: {
-    marginTop: 15,
-    color: "#666",
-    fontSize: 13,
-    textAlign: "center",
-    width: "90%",
-  },
-  linkText: {
-    color: "#0047AB",
-    textDecorationLine: "underline",
-  },
+    container: {
+        flex: 1,
+        backgroundColor: "#fff",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+    },
+    tabContainer: {
+        flexDirection: "row",
+        backgroundColor: "#eee",
+        borderRadius: 20,
+        marginBottom: 20,
+    },
+    tab: {
+        flex: 1,
+        textAlign: "center",
+        paddingVertical: 10,
+        fontWeight: "500",
+        color: "#666",
+    },
+    activeTab: {
+        color: "#002B5C",
+        fontWeight: "700",
+        borderBottomWidth: 2,
+        borderColor: "#002B5C",
+    },
 });
