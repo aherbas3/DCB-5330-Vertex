@@ -10,7 +10,7 @@ import {
     Image,
 } from "react-native";
 import {useRouter} from "expo-router";
-import {signout} from "firebase/auth";
+import {signOut} from "firebase/auth";
 import {auth} from "../firebaseConfig";
 import {Picker} from "@react-native-picker/picker";
 
@@ -27,7 +27,7 @@ export default function ProfileScreen() {
 
     const handleLogout = async () => {
         try {
-            await signout(auth);
+            await signOut(auth);
             router.replace("/signin");
         } catch (err) {
             console.error("Logout failed:", err);
