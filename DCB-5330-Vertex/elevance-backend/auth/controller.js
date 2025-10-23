@@ -1,4 +1,5 @@
 const { admin, db } = require("../firebase");
+const UserService = require("../services/userService");
 
 // Helper function to validate user data before storage
 function validateUserData(userData) {
@@ -95,6 +96,39 @@ async function syncUser(req, res) {
                 };
             }
         });
+
+        // Also sync to PostgreSQL
+        try {
+            console.log("Syncing user to PostgreSQL:", email);
+            
+            // Prepare data for PostgreSQL
+            const postgresUserData = {
+                first_name: result.isNewUser ? email.split('@')[0] : undefined,
+                last_name: result.isNewUser ? 'User' : undefined,
+                email: email,
+                phone_number: result.isNewUser ? '999-999-9999' : undefined,
+                language: result.isNewUser ? 'English' : undefined,
+                notifications_enabled: result.isNewUser ? true : undefined
+            };
+
+            // Only sync to PostgreSQL if it's a new user or if we want to update existing
+            if (result.isNewUser) {
+                await UserService.syncUser(postgresUserData);
+                console.log("✅ User synced to PostgreSQL");
+            } else {
+                // For existing users, we could update their PostgreSQL record if needed
+                // For now, we'll just log that they exist
+                const existingPostgresUser = await UserService.getUserByEmail(email);
+                if (!existingPostgresUser) {
+                    console.log("⚠️ User exists in Firestore but not in PostgreSQL, syncing...");
+                    await UserService.syncUser(postgresUserData);
+                }
+            }
+        } catch (postgresError) {
+            console.error("❌ Failed to sync to PostgreSQL:", postgresError);
+            // Don't fail the entire request if PostgreSQL sync fails
+            // The user is still synced to Firestore
+        }
 
         // Send successful response
         res.json(result);
