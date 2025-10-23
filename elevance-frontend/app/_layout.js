@@ -22,7 +22,7 @@ export default function Layout() {
         if (!ready) return;
 
         const inAuthGroup = segments[0] === "signin";
-        if (user && inAuthGroup) router.replace("/success");
+        if (user && inAuthGroup) router.replace("/profile");
         else if (!user && !inAuthGroup) router.replace("/signin");
     }, [user, ready, segments]);
 
