@@ -299,5 +299,5 @@ module.exports = {
     getUserProfile,
     updateUserProfile,
     deleteUser,
-    checkUserExists
+    checkUserExists,
 };

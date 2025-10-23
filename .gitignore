@@ -4,3 +4,4 @@ node_modules/
 .DS_Store
 elevance-backend/serviceAccountKey.json
 elevance-backend/.env
+.env
