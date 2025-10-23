@@ -140,20 +140,20 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#fff",
+        backgroundColor: "#ffffff",
         padding: 20,
         alignItems: "center",
     },
     logo: {
         width: 180,
         height: 60,
-        marginBottom: 20,
+        marginBottom: 40,
     },
     title: {
         fontSize: 22,
         fontWeight: "700",
-        color: "#002B5C",
-        marginBottom: 20,
+        color: "#1A3673",
+        marginBottom: 40,
     },
     inputRow: {
         flexDirection: "row",
@@ -162,22 +162,22 @@ const styles = StyleSheet.create({
     },
     inputContainer: {
         width: "48%",
-        marginBottom: 15,
+        marginBottom: 30,
     },
     label: {
         fontWeight: "500",
-        color: "#002B5C",
+        color: "#1A3673",
         marginBottom: 5,
     },
     input: {
         borderWidth: 1,
-        borderColor: "#ccc",
+        borderColor: "#B2EBEA",
         borderRadius: 8,
         padding: 10,
-        backgroundColor: "#f9f9f9",
+        backgroundColor: "#fafafa",
     },
     disabledInput: {
-        backgroundColor: "#eee",
+        backgroundColor: "#eeeeee",
         color: "#888",
     },
     pickerContainer: {
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
         fontStyle: "italic",
     },
     saveButton: {
-        backgroundColor: "#002B5C",
+        backgroundColor: "#1A3673",
         paddingVertical: 12,
         paddingHorizontal: 25,
         borderRadius: 10,
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
     logoutButton: {
-        backgroundColor: "#000",
+        backgroundColor: "#231E33",
         paddingVertical: 12,
         paddingHorizontal: 25,
         borderRadius: 10,

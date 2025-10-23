@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, Alert, Image, StyleSheet } from "react-native";
+import { View, Text, TextInput, Alert, Image, StyleSheet, TouchableOpacity, } from "react-native";
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
@@ -22,8 +22,26 @@ export default function AuthScreen() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
 
+    const handleForgotPassword = async () => {
+        if (!email) {
+            showAlert("Enter Email", "Please enter your email to reset password.");
+            return;
+        }
+        try {
+            await sendPasswordResetEmail(auth, email.trim());
+            showAlert("Password Reset", "A password reset link has been sent.");
+        } catch (error) {
+            console.error("❌ Password Reset Error:", error);
+            showAlert("Error", error.message);
+        }
+    };
+
     const handleAuth = async () => {
         try {
+            if (!email || !password) {
+                showAlert("Missing Fields", "Please enter both email and password.");
+                return;
+            }
             if (!isValidEmail(email)) {
                 showAlert("Invalid Email", "Please enter a valid email address.");
                 return;
@@ -144,16 +162,6 @@ export default function AuthScreen() {
         }
     };
 
-    const handleTestBackend = async () => {
-        try {
-            const res = await fetch(`${BACKEND_URL}/`);
-            const data = await res.json();
-            showAlert("Backend Status", `Connected!\n${JSON.stringify(data, null, 2)}`);
-        } catch (err) {
-            showAlert("Backend Error", `Failed to connect: ${err.message}`);
-        }
-    };
-
     return (
         <View style={styles.container}>
             <Image
@@ -162,51 +170,64 @@ export default function AuthScreen() {
                 resizeMode="contain"
             />
 
-            <DebugBanner backendUrl={BACKEND_URL} onTest={handleTestBackend} />
-
             {/* 📄 Mode Switch */}
             <View style={styles.tabContainer}>
-                <Text
+                <TouchableOpacity
                     style={[styles.tab, mode === "signin" && styles.activeTab]}
                     onPress={() => setMode("signin")}
                 >
-                    Sign In
-                </Text>
-                <Text
+                    <Text style={[styles.tabText, mode === "signin" && styles.activeTabText]}>Sign{'\n'}In</Text>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity
                     style={[styles.tab, mode === "signup" && styles.activeTab]}
                     onPress={() => setMode("signup")}
                 >
-                    Sign Up
-                </Text>
+                    <Text style={[styles.tabText, mode === "signup" && styles.activeTabText]}>Sign{'\n'}Up</Text>
+                </TouchableOpacity>
             </View>
 
-            <InputField
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-            />
-            <InputField
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-            />
+            <View style={styles.formCard}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                    placeholder="Enter your email"
+                    placeholderTextColor="#888"
+                    style={styles.input}
+                    keyboardType="email-address"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                />
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                    placeholder="Enter your password"
+                    placeholderTextColor="#888"
+                    style={styles.input}
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                />
 
-            <PrimaryButton
-                title={
-                    loading
-                        ? "Processing..."
-                        : mode === "signup"
-                            ? "Create Account"
-                            : "Sign In"
-                }
-                onPress={handleAuth}
-                loading={loading}
-            />
+                <PrimaryButton
+                    title={
+                        loading
+                            ? "Processing..."
+                            : mode === "signup"
+                                ? "Create Account"
+                                : "Sign In"
+                    }
+                    onPress={handleAuth}
+                    loading={loading}
+                />
+            </View>
+
+            {mode === "signin" && (
+                <TouchableOpacity onPress={handleForgotPassword}>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+                </TouchableOpacity>
+            )}
 
             {/* Optional: Add password requirements hint */}
             {mode === "signup" && (
@@ -214,6 +235,12 @@ export default function AuthScreen() {
                     Password must be at least 8 characters
                 </Text>
             )}
+
+            <Text style={styles.footerText}>
+                By clicking continue, you agree to our{" "}
+                <Text style={styles.linkText}>Terms of Service</Text> and{" "}
+                <Text style={styles.linkText}>Privacy Policy</Text>
+            </Text>
         </View>
     );
 }
@@ -226,29 +253,106 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         padding: 20,
     },
+    formCard: {
+        width: "100%",
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        padding: 20,
+        shadowColor: "#000",
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 3,
+        marginBottom: 20,
+    },
     tabContainer: {
         flexDirection: "row",
-        backgroundColor: "#eee",
-        borderRadius: 20,
-        marginBottom: 20,
+        backgroundColor: "#E3E8EF",
+        justifyContent: "space-around",
+        borderRadius: 10,
+        marginBottom: 25,
+        overflow: "hidden",
     },
     tab: {
         flex: 1,
-        textAlign: "center",
-        paddingVertical: 10,
+        alignItems: "center",
+        paddingVertical: 12,
+        backgroundColor: "#E3E8EF",
+        paddingHorizontal: 20,
+    },
+    divider: {
+        width: 1,
+        backgroundColor: "#CBD5E0",
+    },
+    tabText: {
+        fontSize: 16,
         fontWeight: "500",
-        color: "#666",
+        color: "#7A7A7A",
+        textAlign: "center",
     },
     activeTab: {
-        color: "#002B5C",
+        backgroundColor: "#002B5C",
+        paddingHorizontal: 20,
+    },
+    tabText: {
+        color: "#888",
+        fontSize: 16,
+        fontWeight: "500",
+    },
+    activeTabText: {
+        color: "#fff",
         fontWeight: "700",
-        borderBottomWidth: 2,
-        borderColor: "#002B5C",
+    },
+    label: {
+        alignSelf: "flex-start",
+        fontWeight: "600",
+        color: "#002B5C",
+        marginBottom: 6,
+    },
+    input: {
+        width: "100%",
+        height: 50,
+        borderColor: "#E0E0E0",
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 15,
+        marginBottom: 20,
+        backgroundColor: "#F8F8F8",
     },
     hint: {
-        fontSize: 12,
-        color: "#666",
-        marginTop: 8,
+        fontSize: 14,
+        color: "#231E33",
+        marginTop: 10,
         fontStyle: "italic",
+        textAlign: "center",
+    },
+    button: {
+        backgroundColor: "#000000",
+        width: "100%",
+        paddingVertical: 15,
+        borderRadius: 12,
+        alignItems: "center",
+        marginTop: 10,
+    },
+    buttonText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 16,
+    },
+    forgotText: {
+        color: "#0047AB",
+        marginTop: 10,
+        textDecorationLine: "underline",
+    },
+    footerText: {
+        marginTop: 15,
+        color: "#666",
+        fontSize: 13,
+        textAlign: "center",
+        width: "90%",
+    },
+    linkText: {
+        color: "#0047AB",
+        textDecorationLine: "underline",
     },
 });
