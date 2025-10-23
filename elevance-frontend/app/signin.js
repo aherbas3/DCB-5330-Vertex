@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, Alert, Image, StyleSheet, TouchableOpacity, } from "react-native";
+﻿import React, { useState } from "react";
+import { View, Text, TextInput, Image, StyleSheet, TouchableOpacity } from "react-native";
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
+    sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "../firebaseConfig";
 import {
@@ -27,12 +28,24 @@ export default function AuthScreen() {
             showAlert("Enter Email", "Please enter your email to reset password.");
             return;
         }
+
+        if (!isValidEmail(email)) {
+            showAlert("Invalid Email", "Enter a valid email address before requesting a reset.");
+            return;
+        }
+
         try {
             await sendPasswordResetEmail(auth, email.trim());
-            showAlert("Password Reset", "A password reset link has been sent.");
+            showAlert(
+                "Password Reset",
+                "If an account exists for that email, Firebase will send reset instructions shortly."
+            );
         } catch (error) {
-            console.error("❌ Password Reset Error:", error);
-            showAlert("Error", error.message);
+            console.error("Password reset request failed:", error);
+            showAlert(
+                "Reset Failed",
+                error?.message || "Unable to request a password reset right now. Please try again later."
+            );
         }
     };
 
@@ -170,7 +183,7 @@ export default function AuthScreen() {
                 resizeMode="contain"
             />
 
-            {/* 📄 Mode Switch */}
+            {/* 馃搫 Mode Switch */}
             <View style={styles.tabContainer}>
                 <TouchableOpacity
                     style={[styles.tab, mode === "signin" && styles.activeTab]}
@@ -356,3 +369,4 @@ const styles = StyleSheet.create({
         textDecorationLine: "underline",
     },
 });
+

@@ -6,7 +6,7 @@ const {
     getUserProfile,
     updateUserProfile,
     deleteUser,
-    checkUserExists
+    checkUserExists,
 } = require("./controller");
 
 router.get("/health", (req, res) => {
@@ -22,5 +22,4 @@ router.get("/profile", verifyFirebaseToken, getUserProfile);
 router.put("/profile", verifyFirebaseToken, updateUserProfile);
 router.delete("/account", verifyFirebaseToken, deleteUser);
 router.get("/check", verifyFirebaseToken, checkUserExists);
-
 module.exports = router;
