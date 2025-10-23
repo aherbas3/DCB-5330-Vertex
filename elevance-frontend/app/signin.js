@@ -38,7 +38,7 @@ export default function AuthScreen() {
             await sendPasswordResetEmail(auth, email.trim());
             showAlert(
                 "Password Reset",
-                "If an account exists for that email, Firebase will send reset instructions shortly."
+                "If an account exists for that email, We will send reset instructions shortly."
             );
         } catch (error) {
             console.error("Password reset request failed:", error);
