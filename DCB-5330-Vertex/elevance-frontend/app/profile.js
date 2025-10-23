@@ -32,9 +32,7 @@ export default function ProfileScreen() {
     // Phone number validation function
     const validatePhoneNumber = (phone) => {
         const phoneRegex = /^\d{3}-\d{3}-\d{4}$/;
-        const result = phoneRegex.test(phone);
-        console.log("🔍 Phone validation for '" + phone + "':", result);
-        return result;
+        return phoneRegex.test(phone);
     };
 
     // Load user profile data from PostgreSQL
@@ -138,24 +136,14 @@ export default function ProfileScreen() {
             return;
         }
 
-        console.log("🔍 Current phone state:", phone);
-        console.log("🔍 Phone length:", phone?.length);
-        console.log("🔍 Phone type:", typeof phone);
-        
         // Validate phone number format
-        console.log("🔍 Validating phone number:", phone);
-        console.log("🔍 Phone validation result:", validatePhoneNumber(phone));
-        
         if (phone && !validatePhoneNumber(phone)) {
-            console.log("❌ Phone number validation failed");
             Alert.alert(
                 "Invalid Phone Number", 
                 "Please enter your phone number in the format ###-###-#### (e.g., 123-456-7890)"
             );
             return;
         }
-        
-        console.log("✅ Phone number validation passed");
 
         try {
             setSaving(true);
