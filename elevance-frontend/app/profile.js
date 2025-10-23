@@ -8,11 +8,13 @@ import {
     StyleSheet,
     Alert,
     Image,
+    ActivityIndicator,
 } from "react-native";
 import {useRouter} from "expo-router";
 import {signOut} from "firebase/auth";
 import {auth} from "../firebaseConfig";
 import {Picker} from "@react-native-picker/picker";
+import {getPostgresProfile, updatePostgresProfile, syncToPostgres} from "./utils/backend";
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -24,21 +26,175 @@ export default function ProfileScreen() {
     const [phone, setPhone] = useState("");
     const [language, setLanguage] = useState("English");
     const [notifications, setNotifications] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    // Phone number validation function
+    const validatePhoneNumber = (phone) => {
+        const phoneRegex = /^\d{3}-\d{3}-\d{4}$/;
+        const result = phoneRegex.test(phone);
+        console.log("🔍 Phone validation for '" + phone + "':", result);
+        return result;
+    };
+
+    // Load user profile data from PostgreSQL
+    useEffect(() => {
+        const loadProfile = async () => {
+            if (!user) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                setLoading(true);
+                const token = await user.getIdToken();
+                
+                try {
+                    // Try to get existing profile from PostgreSQL
+                    const response = await getPostgresProfile(token);
+                    const profileData = response.user;
+                    
+                    setFirstName(profileData.first_name || "");
+                    setLastName(profileData.last_name || "");
+                    setPhone(profileData.phone_number || "");
+                    setLanguage(profileData.language || "English");
+                    setNotifications(profileData.notifications_enabled || false);
+                    
+                    console.log("✅ Profile loaded from PostgreSQL");
+                } catch (error) {
+                    console.log("⚠️ No PostgreSQL profile found, creating new one...");
+                    
+                    // If no profile exists, create one with default values
+                    const defaultData = {
+                        first_name: "FirstName",
+                        last_name: "LastName",
+                        phone_number: "999-999-9999",
+                        language: "English",
+                        notifications_enabled: true
+                    };
+                    
+                    await syncToPostgres(token, defaultData);
+                    
+                    // Set the default values
+                    setFirstName(defaultData.first_name);
+                    setLastName(defaultData.last_name);
+                    setPhone(defaultData.phone_number);
+                    setLanguage(defaultData.language);
+                    setNotifications(defaultData.notifications_enabled);
+                    
+                    console.log("✅ New profile created in PostgreSQL");
+                }
+            } catch (error) {
+                console.error("❌ Failed to load profile:", error);
+                Alert.alert("Error", "Failed to load profile data. Please try again.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadProfile();
+    }, [user]);
 
     const handleLogout = async () => {
         try {
+            console.log("🔄 Starting logout process...");
+            console.log("🔄 Current user before signout:", auth.currentUser?.email);
+            
             await signOut(auth);
-            router.replace("/signin");
-        } catch (err) {
-            console.error("Logout failed:", err);
-            Alert.alert("Logout Error", "Unable to sign out. Try again.");
+            
+            console.log("✅ Firebase signout successful");
+            console.log("🔄 Current user after signout:", auth.currentUser?.email);
+            
+            // Force immediate navigation with multiple methods
+            console.log("🔄 Forcing navigation to signin page...");
+            
+            // Try multiple navigation methods
+            try {
+                router.replace("/signin");
+                console.log("✅ Router replace successful");
+            } catch (e) {
+                console.log("🔄 Replace failed, trying push...");
+                router.push("/signin");
+                console.log("✅ Router push successful");
+            }
+            
+            // Also try a direct window location change as backup
+            if (typeof window !== 'undefined') {
+                setTimeout(() => {
+                    console.log("🔄 Trying window.location fallback...");
+                    window.location.href = '/signin';
+                }, 200);
+            }
+            
+        } catch (logoutError) {
+            console.error("❌ Logout failed:", logoutError);
+            Alert.alert("Logout Error", "Unable to sign out. Please try again.");
         }
     };
 
-    const handleSave = () => {
-        Alert.alert("Profile Saved", "Your profile information has been updated.");
-        //TODO: Add Firestore update logic for syncing profile data
+    const handleSave = async () => {
+        if (!user) {
+            Alert.alert("Error", "You must be logged in to save your profile.");
+            return;
+        }
+
+        console.log("🔍 Current phone state:", phone);
+        console.log("🔍 Phone length:", phone?.length);
+        console.log("🔍 Phone type:", typeof phone);
+        
+        // Validate phone number format
+        console.log("🔍 Validating phone number:", phone);
+        console.log("🔍 Phone validation result:", validatePhoneNumber(phone));
+        
+        if (phone && !validatePhoneNumber(phone)) {
+            console.log("❌ Phone number validation failed");
+            Alert.alert(
+                "Invalid Phone Number", 
+                "Please enter your phone number in the format ###-###-#### (e.g., 123-456-7890)"
+            );
+            return;
+        }
+        
+        console.log("✅ Phone number validation passed");
+
+        try {
+            setSaving(true);
+            const token = await user.getIdToken();
+
+            const updates = {
+                first_name: firstName,
+                last_name: lastName,
+                phone_number: phone,
+                language: language,
+                notifications_enabled: notifications
+            };
+
+            await updatePostgresProfile(token, updates);
+            
+            Alert.alert("Profile Saved", "Your profile information has been updated successfully!");
+            console.log("✅ Profile saved to PostgreSQL");
+        } catch (error) {
+            console.error("❌ Failed to save profile:", error);
+            Alert.alert("Save Error", "Failed to save your profile. Please try again.");
+        } finally {
+            setSaving(false);
+        }
     };
+
+    // Show loading spinner while loading profile data
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.centered]}>
+                <Image
+                    source={require("../assets/elevance-logo.png")}
+                    style={styles.logo}
+                    resizeMode="contain"
+                />
+                <ActivityIndicator size="large" color="#002B5C" />
+                <Text style={styles.loadingText}>Loading your profile...</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -87,8 +243,9 @@ export default function ProfileScreen() {
                     value={phone}
                     onChangeText={setPhone}
                     keyboardType="phone-pad"
-                    placeholder="Enter phone number"
+                    placeholder="123-456-7890"
                 />
+                <Text style={styles.helperText}>Format: ###-###-####</Text>
             </View>
 
             <View style={styles.inputContainer}>
@@ -126,8 +283,19 @@ export default function ProfileScreen() {
                 </Text>
             )}
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+            <TouchableOpacity 
+                style={[styles.saveButton, saving && styles.disabledButton]} 
+                onPress={handleSave}
+                disabled={saving}
+            >
+                {saving ? (
+                    <View style={styles.savingContainer}>
+                        <ActivityIndicator size="small" color="#fff" />
+                        <Text style={styles.saveButtonText}>Saving...</Text>
+                    </View>
+                ) : (
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -224,5 +392,29 @@ const styles = StyleSheet.create({
     logoutText: {
         color: "#fff",
         fontWeight: "600",
+    },
+    centered: {
+        justifyContent: "center",
+    },
+    loadingText: {
+        marginTop: 20,
+        fontSize: 16,
+        color: "#002B5C",
+        textAlign: "center",
+    },
+    disabledButton: {
+        backgroundColor: "#ccc",
+        opacity: 0.7,
+    },
+    savingContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    helperText: {
+        fontSize: 12,
+        color: "#666",
+        marginTop: 5,
+        fontStyle: "italic",
     },
 });
