@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const { initializeDatabase, testConnection } = require("./database");
 const app = express();
 
 app.use(cors({
@@ -26,6 +27,7 @@ app.use((req, res, next) => {
 
 const authRoutes = require("./auth/routes");
 const userRoutes = require("./routes/users");
+const postgresUserRoutes = require("./routes/postgresUsers");
 const { verifyFirebaseToken } = require("./auth/authorizetokens");
 
 app.get("/", (req, res) => {
@@ -37,7 +39,9 @@ app.get("/", (req, res) => {
       root: "GET /",
       authSync: "POST /auth/sync",
       protected: "GET /protected",
-      userProfile: "GET /users/profile"
+      userProfile: "GET /users/profile",
+      postgresProfile: "GET /postgres-users/profile",
+      postgresSync: "POST /postgres-users/sync"
     }
   });
 });
@@ -45,8 +49,11 @@ app.get("/", (req, res) => {
 // Auth routes
 app.use("/auth", authRoutes);
 
-// User routes
+// User routes (Firestore)
 app.use("/users", userRoutes);
+
+// PostgreSQL User routes
+app.use("/postgres-users", postgresUserRoutes);
 
 
 app.get("/protected", verifyFirebaseToken, (req, res) => {
@@ -60,4 +67,30 @@ app.get("/protected", verifyFirebaseToken, (req, res) => {
 
 const PORT = process.env.PORT || 5050;
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Initialize database and start server
+const startServer = async () => {
+  try {
+    // Test database connection
+    console.log('🔄 Testing database connection...');
+    const dbConnected = await testConnection();
+    
+    if (!dbConnected) {
+      console.error('❌ Failed to connect to database. Server not started.');
+      process.exit(1);
+    }
+
+    // Initialize database schema
+    await initializeDatabase();
+
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📊 Database connected and schema initialized`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();

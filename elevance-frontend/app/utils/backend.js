@@ -66,6 +66,50 @@ export async function checkUserExists(token) {
     return handleResponse(res);
 }
 
+// PostgreSQL-specific functions
+export async function getPostgresProfile(token) {
+    const res = await fetch(`${BACKEND_URL}/postgres-users/profile`, {
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+        },
+    });
+    return handleResponse(res);
+}
+
+export async function updatePostgresProfile(token, updates) {
+    const res = await fetch(`${BACKEND_URL}/postgres-users/profile`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updates),
+    });
+    return handleResponse(res);
+}
+
+export async function syncToPostgres(token, userData) {
+    const res = await fetch(`${BACKEND_URL}/postgres-users/sync`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(userData),
+    });
+    return handleResponse(res);
+}
+
+export async function checkPostgresUserExists(token) {
+    const res = await fetch(`${BACKEND_URL}/postgres-users/check`, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        },
+    });
+    return handleResponse(res);
+}
+
 async function handleResponse(res) {
     let data;
     try {
