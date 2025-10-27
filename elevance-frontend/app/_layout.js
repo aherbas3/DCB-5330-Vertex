@@ -27,7 +27,7 @@ export default function Layout() {
         
         if (user && inAuthGroup) {
             console.log("🔄 _layout.js: Redirecting logged-in user from signin to profile");
-            router.replace("/profile");
+           router.replace("/main/profile");
         } else if (!user && !inAuthGroup) {
             console.log("🔄 _layout.js: Redirecting logged-out user to signin");
             router.replace("/signin");

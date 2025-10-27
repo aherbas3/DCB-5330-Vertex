@@ -12,9 +12,9 @@ import {
 } from "react-native";
 import {useRouter} from "expo-router";
 import {signOut} from "firebase/auth";
-import {auth} from "../firebaseConfig";
+import {auth} from "../../firebaseConfig";
 import {Picker} from "@react-native-picker/picker";
-import {getPostgresProfile, updatePostgresProfile, syncToPostgres} from "./utils/backend";
+import {getUserProfile, updateUserProfile, syncUser} from "../../utils/backend";
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -51,7 +51,7 @@ export default function ProfileScreen() {
                 
                 try {
                     // Try to get existing profile from PostgreSQL
-                    const response = await getPostgresProfile(token);
+                    const response = await getUserProfile(token);
                     const profileData = response.user;
                     
                     setFirstName(profileData.first_name || "");
@@ -73,7 +73,7 @@ export default function ProfileScreen() {
                         notifications_enabled: true
                     };
                     
-                    await syncToPostgres(token, defaultData);
+                    await syncUser(token, defaultData);
                     
                     // Set the default values
                     setFirstName(defaultData.first_name);
@@ -169,7 +169,7 @@ export default function ProfileScreen() {
                 notifications_enabled: notifications
             };
 
-            await updatePostgresProfile(token, updates);
+            await updateUserProfile(token, updates);
             
             Alert.alert("Profile Saved", "Your profile information has been updated successfully!");
             console.log("✅ Profile saved to PostgreSQL");
@@ -186,7 +186,7 @@ export default function ProfileScreen() {
         return (
             <View style={[styles.container, styles.centered]}>
                 <Image
-                    source={require("../assets/elevance-logo.png")}
+                    source={require("../../assets/elevance-logo.png")}
                     style={styles.logo}
                     resizeMode="contain"
                 />
@@ -199,7 +199,7 @@ export default function ProfileScreen() {
     return (
         <View style={styles.container}>
             <Image
-                source={require("../assets/elevance-logo.png")}
+                source={require("../../assets/elevance-logo.png")}
                 style={styles.logo}
                 resizeMode="contain"
             />

@@ -11,10 +11,10 @@ import {
     isValidEmail,
     isStrongPassword,
     BACKEND_URL,
-} from "./utils/backend";
-import { InputField, PrimaryButton, DebugBanner } from "./utils/components";
+} from "../utils/backend";
+import { InputField, PrimaryButton, DebugBanner } from "../utils/components";
 import { useRouter } from "expo-router";
-import {showAlert} from "./showalert";
+import {showAlert} from "../utils/showalert";
 
 export default function AuthScreen() {
     const router = useRouter();
@@ -297,12 +297,7 @@ const styles = StyleSheet.create({
         width: 1,
         backgroundColor: "#CBD5E0",
     },
-    tabText: {
-        fontSize: 16,
-        fontWeight: "500",
-        color: "#7A7A7A",
-        textAlign: "center",
-    },
+
     activeTab: {
         backgroundColor: "#002B5C",
         paddingHorizontal: 20,
