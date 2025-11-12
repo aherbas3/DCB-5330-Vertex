@@ -83,6 +83,26 @@ async function handleResponse(res) {
     return data;
 }
 
+// Get all providers (for client-side filtering)
+export async function getAllProviders(token) {
+    const res = await fetch(`${BACKEND_URL}/providers/all`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    return handleResponse(res);
+}
+
+// Get provider's available time slots
+export async function getProviderSlots(token, providerId) {
+    const res = await fetch(`${BACKEND_URL}/providers/${providerId}/slots`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    return handleResponse(res);
+}
+
 export async function getProviders(token, queryParams) {
     const res = await fetch(`${BACKEND_URL}/providers/search?${queryParams}`, {
         headers: {
@@ -92,6 +112,50 @@ export async function getProviders(token, queryParams) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to fetch providers");
     return data;
+}
+
+// Appointments API
+export async function getAppointments(token) {
+    const res = await fetch(`${BACKEND_URL}/appointments`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    return handleResponse(res);
+}
+
+export async function bookAppointment(token, appointmentData) {
+    const res = await fetch(`${BACKEND_URL}/appointments`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(appointmentData),
+    });
+    return handleResponse(res);
+}
+
+export async function updateAppointment(token, id, updates) {
+    const res = await fetch(`${BACKEND_URL}/appointments/${id}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+    });
+    return handleResponse(res);
+}
+
+export async function deleteAppointment(token, id) {
+    const res = await fetch(`${BACKEND_URL}/appointments/${id}`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    return handleResponse(res);
 }
 
 export const isValidEmail = (email) => {

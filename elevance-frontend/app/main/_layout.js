@@ -13,20 +13,38 @@ export default function MainLayout() {
             }}
         >
             <Tabs.Screen
-                name="profile"
+                name="home"
                 options={{
-                    title: "Profile",
+                    title: "Home",
                     tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="person-circle-outline" size={size} color={color} />
+                        <Ionicons name="home-outline" size={size} color={color} />
                     ),
                 }}
             />
             <Tabs.Screen
                 name="find-provider"
                 options={{
-                    title: "Find a Provider",
+                    title: "Find Provider",
                     tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="map-outline" size={size} color={color} />
+                        <Ionicons name="search-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="appointments"
+                options={{
+                    title: "Appointments",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="calendar-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="profile"
+                options={{
+                    title: "Profile",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="person-circle-outline" size={size} color={color} />
                     ),
                 }}
             />
