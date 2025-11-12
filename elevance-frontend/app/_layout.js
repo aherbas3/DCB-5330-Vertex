@@ -2,39 +2,58 @@ import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../firebaseConfig";
+import { getFirebaseAuth } from "../firebaseAuth";
+import { AlertProvider } from "../utils/showalert";
 
 export default function Layout() {
+    const [auth, setAuth] = useState(null);
     const [user, setUser] = useState(null);
     const [ready, setReady] = useState(false);
     const router = useRouter();
     const segments = useSegments();
 
     useEffect(() => {
-        const unsub = onAuthStateChanged(auth, (currentUser) => {
-            console.log("🔍 _layout.js: Auth state changed, user:", currentUser ? currentUser.email : "null");
-            setUser(currentUser);
-            setReady(true);
-        });
-        return unsub;
+        (async () => {
+            const a = await getFirebaseAuth();
+            if (!a) {
+                console.error("❌ Firebase Auth not ready, skipping onAuthStateChanged");
+                return;
+            }
+            setAuth(a);
+
+            const unsub = onAuthStateChanged(a, (currentUser) => {
+                console.log("🔍 Auth state changed:", currentUser?.email || "null");
+                setUser(currentUser);
+                setReady(true);
+            });
+
+            return () => unsub();
+        })();
     }, []);
 
+
+    // ✅ Handle redirects once auth/user ready
     useEffect(() => {
         if (!ready) return;
 
         const inAuthGroup = segments[0] === "signin";
-        console.log("🔍 _layout.js: Navigation check - user:", user ? user.email : "null", "current route:", segments[0]);
-        
+        console.log(
+            "🔍 Navigation check - user:",
+            user ? user.email : "null",
+            "current route:",
+            segments[0]
+        );
+
         if (user && inAuthGroup) {
-            console.log("🔄 _layout.js: Redirecting logged-in user from signin to profile");
-           router.replace("/main/profile");
+            console.log("🔄 Redirecting logged-in user to home");
+            router.replace("/main/home");
         } else if (!user && !inAuthGroup) {
-            console.log("🔄 _layout.js: Redirecting logged-out user to signin");
+            console.log("🔄 Redirecting logged-out user to signin");
             router.replace("/signin");
         }
     }, [user, ready, segments]);
 
-    if (!ready) {
+    if (!ready || !auth) {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#002B5C" />
@@ -43,7 +62,11 @@ export default function Layout() {
         );
     }
 
-    return <Slot />;
+    return (
+        <AlertProvider>
+            <Slot />
+        </AlertProvider>
+    );
 }
 
 const styles = StyleSheet.create({

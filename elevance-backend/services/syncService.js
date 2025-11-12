@@ -27,11 +27,12 @@ class SyncService {
             isNewUser = true;
         }
 
-        return { email, isNewUser };
+        return { email, isNewUser, uid };
     }
 
-    static async mirrorToPostgres({ email, isNewUser }) {
+    static async mirrorToPostgres({ email, isNewUser, uid }) {
         const data = {
+            firebase_uid: uid,
             first_name: email.split("@")[0],
             last_name: "User",
             email,

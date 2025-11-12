@@ -1,29 +1,50 @@
-﻿import React, { useState } from "react";
-import { View, Text, TextInput, Image, StyleSheet, TouchableOpacity } from "react-native";
+﻿import React, { useState, useEffect } from "react";
+import {
+    View,
+    Text,
+    TextInput,
+    Image,
+    StyleSheet,
+    TouchableOpacity,
+    ActivityIndicator,
+    ScrollView,
+    Platform
+} from "react-native";
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     sendPasswordResetEmail,
 } from "firebase/auth";
-import { auth } from "../firebaseConfig";
+import { getFirebaseAuth } from "../firebaseAuth";
 import {
     syncUser,
     isValidEmail,
     isStrongPassword,
-    BACKEND_URL,
 } from "../utils/backend";
-import { InputField, PrimaryButton, DebugBanner } from "../utils/components";
+import { PrimaryButton } from "../utils/components";
+import { showAlert } from "../utils/showalert";
 import { useRouter } from "expo-router";
-import {showAlert} from "../utils/showalert";
 
 export default function AuthScreen() {
     const router = useRouter();
+    const [auth, setAuth] = useState(null);
     const [mode, setMode] = useState("signup");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
 
+    // ✅ Lazily initialize Firebase Auth (native-safe)
+    useEffect(() => {
+        (async () => {
+            const a = await getFirebaseAuth();
+            setAuth(a);
+            console.log("✅ Firebase Auth ready in signin.js");
+        })();
+    }, []);
+
     const handleForgotPassword = async () => {
+        if (!auth) return;
+
         if (!email) {
             showAlert("Enter Email", "Please enter your email to reset password.");
             return;
@@ -38,18 +59,23 @@ export default function AuthScreen() {
             await sendPasswordResetEmail(auth, email.trim());
             showAlert(
                 "Password Reset",
-                "If an account exists for that email, We will send reset instructions shortly."
+                "If an account exists for that email, we’ll send reset instructions shortly."
             );
         } catch (error) {
             console.error("Password reset request failed:", error);
             showAlert(
                 "Reset Failed",
-                error?.message || "Unable to request a password reset right now. Please try again later."
+                error?.message || "Unable to request a password reset right now."
             );
         }
     };
 
     const handleAuth = async () => {
+        if (!auth) {
+            showAlert("Firebase not ready", "Please wait for initialization and try again.");
+            return;
+        }
+
         try {
             if (!email || !password) {
                 showAlert("Missing Fields", "Please enter both email and password.");
@@ -84,96 +110,80 @@ export default function AuthScreen() {
             const token = await cred.user.getIdToken();
             console.log("Got Firebase ID token");
 
-            // Sync with backend - this ensures user data is stored properly
             try {
                 const syncResult = await syncUser(token);
                 console.log("Backend sync result:", syncResult);
-
-
-                router.replace("/profile");
-
+                router.replace("/main/home");
             } catch (syncErr) {
                 console.error("Backend sync failed:", syncErr);
-
                 showAlert(
                     "Partial Success",
                     "Signed in but profile sync failed. You can still continue.",
-                    [{ text: "OK", onPress: () => router.replace("/profile") }]
+                    [{ text: "OK", onPress: () => router.replace("/main/home") }]
                 );
             }
-
         } catch (err) {
             console.error("Auth error:", err);
-
-            let msg = "An unexpected error occurred. Please try again.";
-            let title = "Authentication Error";
-
-            switch (err.code) {
-                case "auth/email-already-in-use":
-                    title = "Email Already Registered";
-                    msg = "This email is already registered. Please sign in instead or use a different email.";
-                    // Optionally switch to sign in mode
-                    setTimeout(() => setMode("signin"), 100);
-                    break;
-
-                case "auth/invalid-email":
-                    title = "Invalid Email";
-                    msg = "The email address format is invalid. Please check and try again.";
-                    break;
-
-                case "auth/weak-password":
-                    title = "Weak Password";
-                    msg = "Password is too weak. Please use at least 6 characters including numbers and letters.";
-                    break;
-
-                // Sign In Errors
-                case "auth/user-not-found":
-                    title = "Account Not Found";
-                    msg = "No account exists with this email. Please sign up first or check your email.";
-                    // Optionally switch to sign up mode
-                    setTimeout(() => setMode("signup"), 100);
-                    break;
-
-                case "auth/wrong-password":
-                    title = "Incorrect Password";
-                    msg = "The password is incorrect. Please try again or reset your password.";
-                    break;
-
-                case "auth/invalid-credential":
-                    title = "Invalid Credentials";
-                    msg = mode === "signin"
-                        ? "Invalid email or password. Please check your credentials and try again."
-                        : "Unable to create account. Please check your information.";
-                    break;
-
-                // Rate Limiting
-                case "auth/too-many-requests":
-                    title = "Too Many Attempts";
-                    msg = "Too many failed attempts. Please wait a few minutes and try again.";
-                    break;
-
-                // Network Errors
-                case "auth/network-request-failed":
-                    title = "Network Error";
-                    msg = "Network connection failed. Please check your internet and try again.";
-                    break;
-
-                // User Disabled
-                case "auth/user-disabled":
-                    title = "Account Disabled";
-                    msg = "This account has been disabled. Please contact support.";
-                    break;
-
-                default:
-                    console.error("Unhandled error code:", err.code);
-                    msg = err.message || msg;
-            }
-
-            showAlert(title, msg);
+            handleAuthError(err);
         } finally {
             setLoading(false);
         }
     };
+
+    const handleAuthError = (err) => {
+        let title = "Authentication Error";
+        let msg = "An unexpected error occurred. Please try again.";
+
+        switch (err.code) {
+            case "auth/email-already-in-use":
+                title = "Email Already Registered";
+                msg = "This email is already registered. Please sign in instead.";
+                setTimeout(() => setMode("signin"), 100);
+                break;
+            case "auth/invalid-email":
+                title = "Invalid Email";
+                msg = "The email address format is invalid.";
+                break;
+            case "auth/weak-password":
+                title = "Weak Password";
+                msg = "Password is too weak. Use at least 6 characters.";
+                break;
+            case "auth/user-not-found":
+                title = "Account Not Found";
+                msg = "No account exists with this email. Please sign up first.";
+                setTimeout(() => setMode("signup"), 100);
+                break;
+            case "auth/wrong-password":
+                title = "Incorrect Password";
+                msg = "The password is incorrect. Try again or reset your password.";
+                break;
+            case "auth/too-many-requests":
+                title = "Too Many Attempts";
+                msg = "Please wait a few minutes and try again.";
+                break;
+            case "auth/network-request-failed":
+                title = "Network Error";
+                msg = "Network connection failed. Please check your internet.";
+                break;
+            case "auth/user-disabled":
+                title = "Account Disabled";
+                msg = "This account has been disabled. Please contact support.";
+                break;
+            default:
+                msg = err.message || msg;
+        }
+
+        showAlert(title, msg);
+    };
+
+    if (!auth) {
+        return (
+            <View style={styles.container}>
+                <ActivityIndicator size="large" color="#002B5C" />
+                <Text style={styles.hint}>Initializing Firebase...</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -183,13 +193,13 @@ export default function AuthScreen() {
                 resizeMode="contain"
             />
 
-            {/* 馃搫 Mode Switch */}
+            {/* Mode Switch */}
             <View style={styles.tabContainer}>
                 <TouchableOpacity
                     style={[styles.tab, mode === "signin" && styles.activeTab]}
                     onPress={() => setMode("signin")}
                 >
-                    <Text style={[styles.tabText, mode === "signin" && styles.activeTabText]}>Sign{'\n'}In</Text>
+                    <Text style={[styles.tabText, mode === "signin" && styles.activeTabText]}>Sign{"\n"}In</Text>
                 </TouchableOpacity>
 
                 <View style={styles.divider} />
@@ -198,7 +208,7 @@ export default function AuthScreen() {
                     style={[styles.tab, mode === "signup" && styles.activeTab]}
                     onPress={() => setMode("signup")}
                 >
-                    <Text style={[styles.tabText, mode === "signup" && styles.activeTabText]}>Sign{'\n'}Up</Text>
+                    <Text style={[styles.tabText, mode === "signup" && styles.activeTabText]}>Sign{"\n"}Up</Text>
                 </TouchableOpacity>
             </View>
 
@@ -238,15 +248,12 @@ export default function AuthScreen() {
 
             {mode === "signin" && (
                 <TouchableOpacity onPress={handleForgotPassword}>
-                <Text style={styles.forgotText}>Forgot Password?</Text>
+                    <Text style={styles.forgotText}>Forgot Password?</Text>
                 </TouchableOpacity>
             )}
 
-            {/* Optional: Add password requirements hint */}
             {mode === "signup" && (
-                <Text style={styles.hint}>
-                    Password must be at least 8 characters
-                </Text>
+                <Text style={styles.hint}>Password must be at least 8 characters</Text>
             )}
 
             <Text style={styles.footerText}>
@@ -272,7 +279,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 20,
         shadowColor: "#000",
-        shadowOffset: {width: 0, height: 2},
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 6,
         elevation: 3,
@@ -291,26 +298,11 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingVertical: 12,
         backgroundColor: "#E3E8EF",
-        paddingHorizontal: 20,
     },
-    divider: {
-        width: 1,
-        backgroundColor: "#CBD5E0",
-    },
-
-    activeTab: {
-        backgroundColor: "#002B5C",
-        paddingHorizontal: 20,
-    },
-    tabText: {
-        color: "#888",
-        fontSize: 16,
-        fontWeight: "500",
-    },
-    activeTabText: {
-        color: "#fff",
-        fontWeight: "700",
-    },
+    divider: { width: 1, backgroundColor: "#CBD5E0" },
+    activeTab: { backgroundColor: "#002B5C" },
+    tabText: { color: "#888", fontSize: 16, fontWeight: "500" },
+    activeTabText: { color: "#fff", fontWeight: "700" },
     label: {
         alignSelf: "flex-start",
         fontWeight: "600",
@@ -326,26 +318,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 15,
         marginBottom: 20,
         backgroundColor: "#F8F8F8",
-    },
-    hint: {
-        fontSize: 14,
-        color: "#231E33",
-        marginTop: 10,
-        fontStyle: "italic",
-        textAlign: "center",
-    },
-    button: {
-        backgroundColor: "#000000",
-        width: "100%",
-        paddingVertical: 15,
-        borderRadius: 12,
-        alignItems: "center",
-        marginTop: 10,
-    },
-    buttonText: {
-        color: "#fff",
-        fontWeight: "600",
-        fontSize: 16,
     },
     forgotText: {
         color: "#0047AB",
@@ -363,5 +335,11 @@ const styles = StyleSheet.create({
         color: "#0047AB",
         textDecorationLine: "underline",
     },
+    hint: {
+        fontSize: 14,
+        color: "#231E33",
+        marginTop: 10,
+        fontStyle: "italic",
+        textAlign: "center",
+    },
 });
-
