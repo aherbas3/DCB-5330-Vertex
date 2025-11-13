@@ -7,8 +7,13 @@ const path = require('path');
 module.exports = async function (env, argv) {
     const config = await createExpoWebpackConfigAsync(env, argv);
 
-    // Add custom aliases for React Native modules
+    // IMPORTANT: Alias react-native-maps BEFORE other aliases to ensure it takes precedence
+    const teovilla = path.resolve(__dirname, 'node_modules/@teovilla/react-native-web-maps');
+
     config.resolve.alias = {
+        // Put react-native-maps alias FIRST to ensure it's matched before any other rules
+        'react-native-maps$': teovilla,
+        'react-native-maps/lib': teovilla,
         ...config.resolve.alias,
         'react-native$': 'react-native-web',
         'react-native/Libraries/Utilities/Platform': 'react-native-web/dist/exports/Platform',
@@ -29,24 +34,6 @@ module.exports = async function (env, argv) {
         "os": false,
         "url": false,
     };
-
-    // Exclude MapBox GL from Babel transpilation
-    config.module.rules.forEach(rule => {
-        if (rule.oneOf) {
-            rule.oneOf.forEach(oneOfRule => {
-                if (oneOfRule.loader && oneOfRule.loader.includes('babel-loader')) {
-                    if (!oneOfRule.exclude) {
-                        oneOfRule.exclude = [];
-                    }
-                    if (Array.isArray(oneOfRule.exclude)) {
-                        oneOfRule.exclude.push(/node_modules\/mapbox-gl/);
-                    } else {
-                        oneOfRule.exclude = [oneOfRule.exclude, /node_modules\/mapbox-gl/];
-                    }
-                }
-            });
-        }
-    });
 
     return config;
 };

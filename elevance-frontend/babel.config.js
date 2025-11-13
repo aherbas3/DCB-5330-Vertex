@@ -3,11 +3,6 @@ module.exports = function(api) {
     api.cache(true);
     return {
         presets: ['babel-preset-expo'],
-        // Exclude mapbox-gl from transformation
-        ignore: [
-            'node_modules/mapbox-gl/dist/mapbox-gl.js',
-            'node_modules/mapbox-gl/dist/mapbox-gl-unminified.js'
-        ],
         plugins: [
             // Add module resolver plugin to handle path aliases
             [
@@ -37,8 +32,6 @@ module.exports = function(api) {
                         'react-native-web/dist/Utilities/codegenNativeCommands': './codegen-stub',
                         'react-native-web/dist/Utilities/codegenNativeComponent': './codegen-stub',
                         'react-native/Libraries': 'react-native-web/dist',
-                        // Platform-specific aliases for react-native-maps on web
-                        'react-native-maps': './react-native-maps-web-shim',
                     },
                 },
             ],
