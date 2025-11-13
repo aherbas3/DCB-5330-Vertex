@@ -3,6 +3,9 @@ const router = express.Router();
 const { verifyFirebaseToken } = require("../auth/authorizetokens");
 const { syncUser } = require("../auth/controller");
 
+console.log("🔥 Firebase auth loaded");
+
+
 // Sync user between Firebase and database
 router.post("/sync", verifyFirebaseToken, syncUser);
 
