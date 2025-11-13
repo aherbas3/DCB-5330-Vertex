@@ -16,6 +16,7 @@
     "@react-native-async-storage/async-storage": "1.21.0",
     "@react-native-community/slider": "4.4.2",
     "@react-native-picker/picker": "2.6.1",
+    "@teovilla/react-native-web-maps": "^0.9.5",
     "expo": "^50.0.14",
     "expo-constants": "~15.4.6",
     "expo-linking": "~6.2.2",
@@ -55,7 +56,6 @@
     "expo-modules-autolinking": "1.9.3"
   },
   "browser": {
-    "react-native-maps": "./react-native-maps-web-shim.js",
     "react-native/Libraries/Utilities/codegenNativeCommands": "./codegen-stub.js",
     "react-native/Libraries/Utilities/codegenNativeComponent": "./codegen-stub.js"
   }

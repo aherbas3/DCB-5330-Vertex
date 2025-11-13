@@ -97,17 +97,12 @@ config.resolver.extraNodeModules = {
 // Ensure web platform is properly configured
 config.transformer.assetPlugins = ['expo-asset/tools/hashAssetFiles'];
 
-// Exclude mapbox-gl from being transformed
+// Transform options
 config.transformer.getTransformOptions = async () => ({
     transform: {
         experimentalImportSupport: false,
         inlineRequires: true,
     },
 });
-
-// Add mapbox-gl to blacklist/blockList to prevent transformation
-config.resolver.blockList = [
-    /node_modules\/mapbox-gl\/dist\/mapbox-gl-csp-worker\.js/,
-];
 
 module.exports = config;

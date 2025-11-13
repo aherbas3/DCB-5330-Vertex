@@ -9,6 +9,7 @@ import {
     FlatList,
     TextInput,
     ActivityIndicator,
+    Modal,
 } from "react-native";
 import MapView from "../../utils/MapView";
 import { useRouter } from "expo-router";
@@ -23,6 +24,7 @@ export default function FindProvider() {
     const [allProviders, setAllProviders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState("list"); // "map" or "list"
+    const [selectedProvider, setSelectedProvider] = useState(null); // For modal
 
     // Filter states - Start with permissive defaults
     const [inNetwork, setInNetwork] = useState(false);
@@ -227,6 +229,7 @@ export default function FindProvider() {
                         style={styles.map}
                         region={region}
                         providers={filteredProviders.filter(p => p.latitude && p.longitude)}
+                        onMarkerPress={(provider) => setSelectedProvider(provider)}
                     />
                     {filteredProviders.filter(p => p.latitude && p.longitude).length === 0 && (
                         <View style={styles.mapOverlay}>
@@ -269,6 +272,78 @@ export default function FindProvider() {
                     )}
                 />
             )}
+
+            {/* Provider Details Modal */}
+            <Modal
+                visible={!!selectedProvider}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setSelectedProvider(null)}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setSelectedProvider(null)}
+                >
+                    <TouchableOpacity
+                        style={styles.modalContent}
+                        activeOpacity={1}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        {selectedProvider && (
+                            <>
+                                <View style={styles.modalHeader}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.modalTitle}>{selectedProvider.name}</Text>
+                                        <Text style={styles.modalSubtitle}>{selectedProvider.specialty}</Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        onPress={() => setSelectedProvider(null)}
+                                        style={styles.modalCloseBtn}
+                                    >
+                                        <MaterialIcons name="close" size={24} color="#666" />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={styles.modalBody}>
+                                    <View style={styles.modalInfoRow}>
+                                        <MaterialIcons name="star" size={20} color="#FFD700" />
+                                        <Text style={styles.modalInfoText}>Rating: {selectedProvider.rating}/5</Text>
+                                    </View>
+                                    <View style={styles.modalInfoRow}>
+                                        <MaterialIcons name="attach-money" size={20} color="#002B5C" />
+                                        <Text style={styles.modalInfoText}>Cost: ${selectedProvider.cost}</Text>
+                                    </View>
+                                    <View style={styles.modalInfoRow}>
+                                        <MaterialIcons
+                                            name={selectedProvider.in_network ? "check-circle" : "cancel"}
+                                            size={20}
+                                            color={selectedProvider.in_network ? "#155724" : "#721C24"}
+                                        />
+                                        <Text style={styles.modalInfoText}>
+                                            {selectedProvider.in_network ? "In-Network" : "Out-of-Network"}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <TouchableOpacity
+                                    style={styles.modalBookBtn}
+                                    onPress={() => {
+                                        setSelectedProvider(null);
+                                        router.push({
+                                            pathname: "/providers/[id]",
+                                            params: { id: selectedProvider.id }
+                                        });
+                                    }}
+                                >
+                                    <MaterialIcons name="calendar-today" size={20} color="#fff" />
+                                    <Text style={styles.modalBookBtnText}>Book Appointment</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 }
@@ -452,5 +527,72 @@ const styles = StyleSheet.create({
         marginTop: 12,
         fontSize: 16,
         color: "#999",
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    modalContent: {
+        backgroundColor: "#fff",
+        borderRadius: 16,
+        padding: 24,
+        width: "90%",
+        maxWidth: 400,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    modalHeader: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: "#002B5C",
+        marginBottom: 4,
+    },
+    modalSubtitle: {
+        fontSize: 16,
+        color: "#666",
+    },
+    modalCloseBtn: {
+        padding: 4,
+    },
+    modalBody: {
+        marginBottom: 20,
+    },
+    modalInfoRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 12,
+    },
+    modalInfoText: {
+        fontSize: 15,
+        color: "#333",
+        fontWeight: "500",
+    },
+    modalBookBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: "#002B5C",
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 10,
+        marginTop: 8,
+    },
+    modalBookBtnText: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "700",
     },
 });
