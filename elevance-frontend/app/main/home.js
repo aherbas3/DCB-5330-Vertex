@@ -29,8 +29,10 @@ export default function HomeScreen() {
             try {
                 const token = await user.getIdToken();
                 const data = await getAppointments(token);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
                 const upcoming = data.appointments?.filter(a =>
-                    a.status === 'scheduled' && new Date(a.appointment_date) >= new Date()
+                    a.status === 'scheduled' && new Date(a.appointment_date + " 00:00:00") >= today
                 ) || [];
                 setAppointmentCount(upcoming.length);
                 setUpcomingAppointments(upcoming.slice(0, 3)); // Show max 3
@@ -42,45 +44,29 @@ export default function HomeScreen() {
         loadAppointments();
     }, [auth]);
 
-    const appointmentMessage =
-        appointmentCount > 0
-            ? `✅ You have ${appointmentCount} upcoming ${appointmentCount === 1 ? "appointment" : "appointments"}.`
-            : "📅 No appointments scheduled yet.";
-
     return (
         <View style={styles.container}>
             <ScrollView style={styles.content}>
                 <Text style={styles.title}>Welcome to Elevance Health</Text>
 
                 {/* Appointment Summary */}
-                <View style={styles.card}>
+                <TouchableOpacity
+                    style={styles.card}
+                    onPress={() => router.push('/main/appointments')}
+                    activeOpacity={0.7}
+                >
                     <View style={styles.cardHeader}>
                         <MaterialIcons name="event" size={24} color="#002B5C" />
                         <Text style={styles.cardTitle}>Upcoming Appointments</Text>
                     </View>
-                    <Text style={styles.notificationText}>{appointmentMessage}</Text>
-
-                    {upcomingAppointments.length > 0 && (
-                        <View style={styles.appointmentsList}>
-                            {upcomingAppointments.map((appt, idx) => (
-                                <View key={appt.id || idx} style={styles.appointmentItem}>
-                                    <Text style={styles.appointmentProvider}>{appt.providers?.name}</Text>
-                                    <Text style={styles.appointmentDate}>
-                                        {new Date(appt.appointment_date).toLocaleDateString()} at {appt.start_time}
-                                    </Text>
-                                </View>
-                            ))}
-                        </View>
-                    )}
-
-                    <TouchableOpacity
-                        style={styles.viewAllBtn}
-                        onPress={() => router.push('/main/appointments')}
-                    >
-                        <Text style={styles.viewAllText}>View All Appointments</Text>
+                    <Text style={styles.notificationText}>
+                        Check on your {appointmentCount} {appointmentCount === 1 ? "appointment" : "appointments"} scheduled
+                    </Text>
+                    <View style={styles.viewAllBtn}>
+                        <Text style={styles.viewAllText}>View Details</Text>
                         <MaterialIcons name="chevron-right" size={20} color="#002B5C" />
-                    </TouchableOpacity>
-                </View>
+                    </View>
+                </TouchableOpacity>
 
                 {/* Quick Actions */}
                 <Text style={styles.sectionTitle}>Quick Actions</Text>

@@ -15,6 +15,7 @@ app.use("/users", require("./routes/users"));
 app.use("/providers", require("./routes/providers"));
 app.use("/appointments", require("./routes/appointments"));
 app.use("/auth", require("./routes/auth"));
+app.use("/distances", require("./routes/distances"));
 
 app.get("/", (_, res) => res.json({ status: "Server running" }));
 

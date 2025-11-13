@@ -44,9 +44,8 @@ export default function AppointmentsScreen() {
             const token = await user.getIdToken();
             const data = await getAppointments(token);
             setAppointments(data.appointments || []);
-            console.log(`✅ Loaded ${data.appointments?.length || 0} appointments`);
         } catch (err) {
-            console.error("❌ Failed to fetch appointments:", err.message);
+            console.error("Failed to fetch appointments:", err);
             showAlert("Error", "Failed to load appointments. Please try again.");
         } finally {
             setLoading(false);
@@ -78,7 +77,7 @@ export default function AppointmentsScreen() {
                     showAlert("Success", "Appointment cancelled successfully");
                     fetchAppointments(); // Reload
                 } catch (err) {
-                    console.error("❌ Failed to cancel appointment:", err);
+                    console.error("Failed to cancel appointment:", err);
                     showAlert("Error", "Failed to cancel appointment. Please try again.");
                 }
             },
@@ -86,7 +85,8 @@ export default function AppointmentsScreen() {
     };
 
     const filteredAppointments = appointments.filter((appt) => {
-        const apptDate = new Date(appt.appointment_date);
+        // Parse date correctly - append time to avoid UTC interpretation
+        const apptDate = new Date(appt.appointment_date + " 00:00:00");
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -191,7 +191,7 @@ export default function AppointmentsScreen() {
                 }
                 renderItem={({ item }) => {
                     const canCancel = item.status === "scheduled" &&
-                        new Date(item.appointment_date) > new Date();
+                        new Date(item.appointment_date + " 00:00:00") > new Date();
 
                     return (
                         <View style={styles.card}>
@@ -217,13 +217,17 @@ export default function AppointmentsScreen() {
                                 <View style={styles.infoRow}>
                                     <MaterialIcons name="event" size={18} color="#666" />
                                     <Text style={styles.infoText}>
-                                        {new Date(item.appointment_date).toLocaleDateString("en-US", {
-                                            weekday: "long",
-                                            year: "numeric",
-                                            month: "long",
-                                            day: "numeric",
-                                        })}
+                                        {new Date(item.appointment_date + " 00:00:00").toLocaleDateString(
+                                            "en-US",
+                                            {
+                                                weekday: "long",
+                                                year: "numeric",
+                                                month: "long",
+                                                day: "numeric",
+                                            }
+                                        )}
                                     </Text>
+
                                 </View>
                                 <View style={styles.infoRow}>
                                     <MaterialIcons name="access-time" size={18} color="#666" />

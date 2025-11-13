@@ -10,13 +10,16 @@ import {
     TextInput,
     ActivityIndicator,
     Modal,
+    Linking,
+    Platform,
 } from "react-native";
 import MapView from "../../utils/MapView";
 import { useRouter } from "expo-router";
 import Slider from "@react-native-community/slider";
 import { MaterialIcons } from "@expo/vector-icons";
 import { getFirebaseAuth } from "../../firebaseAuth";
-import { getAllProviders } from "../../utils/backend";
+import { getAllProviders, calculateDistances } from "../../utils/backend";
+import * as Location from 'expo-location';
 
 export default function FindProvider() {
     const router = useRouter();
@@ -25,12 +28,15 @@ export default function FindProvider() {
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState("list"); // "map" or "list"
     const [selectedProvider, setSelectedProvider] = useState(null); // For modal
+    const [currentLocation, setCurrentLocation] = useState(null);
 
     // Filter states - Start with permissive defaults
     const [inNetwork, setInNetwork] = useState(false);
     const [maxCost, setMaxCost] = useState(2000); // High default to show all providers
     const [minRating, setMinRating] = useState(0);
     const [searchQuery, setSearchQuery] = useState("");
+    const [maxDistance, setMaxDistance] = useState(50); // miles
+    const [distanceCache, setDistanceCache] = useState({}); // Cache for API distances
 
     const [region, setRegion] = useState({
         latitude: 33.7490,
@@ -44,6 +50,35 @@ export default function FindProvider() {
         (async () => {
             const a = await getFirebaseAuth();
             setAuth(a);
+        })();
+    }, []);
+
+    // Get current location
+    useEffect(() => {
+        (async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') {
+                    console.log('Location permission denied');
+                    return;
+                }
+
+                const location = await Location.getCurrentPositionAsync({});
+                setCurrentLocation({
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                });
+
+                // Update map region to center on user's location
+                setRegion({
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                    latitudeDelta: 0.1,
+                    longitudeDelta: 0.1,
+                });
+            } catch (error) {
+                console.error('Error getting location:', error);
+            }
         })();
     }, []);
 
@@ -63,14 +98,8 @@ export default function FindProvider() {
                 const token = await user.getIdToken();
                 const data = await getAllProviders(token);
                 setAllProviders(data.providers || []);
-                console.log(`✅ Loaded ${data.providers?.length || 0} providers`);
-                if (data.providers && data.providers.length > 0) {
-                    console.log('Sample provider:', data.providers[0]);
-                }
             } catch (err) {
-                console.error("❌ Failed to fetch providers:", err);
-                console.error("Error details:", err.message);
-                console.error("Error stack:", err.stack);
+                console.error("Failed to fetch providers:", err);
             } finally {
                 setLoading(false);
             }
@@ -79,12 +108,149 @@ export default function FindProvider() {
         fetchProviders();
     }, [auth]);
 
+    // Fetch driving distances when location or providers change
+    useEffect(() => {
+        const fetchDistances = async () => {
+            if (!currentLocation || allProviders.length === 0 || !auth) return;
+
+            console.log('Fetching driving distances for', allProviders.length, 'providers...');
+
+            // Batch providers into groups of 25 (API limit)
+            const batchSize = 25;
+            const batches = [];
+            for (let i = 0; i < allProviders.length; i += batchSize) {
+                batches.push(allProviders.slice(i, i + batchSize));
+            }
+
+            const allDistances = {};
+            for (const batch of batches) {
+                const batchDistances = await calculateDrivingDistances(currentLocation, batch);
+                Object.assign(allDistances, batchDistances);
+                // Add small delay between batches to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            console.log('Fetched', Object.keys(allDistances).length, 'driving distances');
+            setDistanceCache(allDistances);
+        };
+
+        fetchDistances();
+    }, [currentLocation, allProviders, auth]);
+
+    // Calculate distance between two coordinates using Haversine formula (in miles)
+    // This is a fallback for when Distance Matrix API fails
+    const calculateStraightLineDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 3959; // Earth's radius in miles
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in miles
+    };
+
+    // Calculate actual driving distances using backend Distance Matrix API
+    const calculateDrivingDistances = async (origin, providers) => {
+        if (!origin || providers.length === 0 || !auth) return {};
+
+        try {
+            const user = auth.currentUser;
+            if (!user) return {};
+
+            const token = await user.getIdToken();
+
+            // Prepare destinations for API
+            const destinations = providers
+                .filter(p => p.latitude && p.longitude)
+                .map(p => ({
+                    id: p.id,
+                    lat: p.latitude,
+                    lng: p.longitude
+                }));
+
+            if (destinations.length === 0) return {};
+
+            const originData = {
+                lat: origin.latitude,
+                lng: origin.longitude
+            };
+
+            // Call backend API
+            const response = await calculateDistances(token, originData, destinations);
+
+            // Convert response to simple distance map
+            const distances = {};
+            Object.keys(response.distances).forEach(providerId => {
+                distances[parseInt(providerId)] = response.distances[providerId].miles;
+            });
+
+            return distances;
+        } catch (error) {
+            console.error('Error fetching driving distances:', error);
+            return {};
+        }
+    };
+
+    // Open directions in Google Maps
+    const openDirections = (provider) => {
+        if (!provider.latitude || !provider.longitude) return;
+
+        const destination = `${provider.latitude},${provider.longitude}`;
+        const label = encodeURIComponent(provider.name);
+
+        let url;
+        if (Platform.OS === 'ios') {
+            url = `maps://app?daddr=${destination}&q=${label}`;
+        } else if (Platform.OS === 'android') {
+            url = `google.navigation:q=${destination}`;
+        } else {
+            // Web - open Google Maps in browser
+            url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&destination_place_id=${label}`;
+        }
+
+        Linking.canOpenURL(url).then((supported) => {
+            if (supported) {
+                Linking.openURL(url);
+            } else {
+                // Fallback to web Google Maps
+                const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+                Linking.openURL(webUrl);
+            }
+        });
+    };
+
     // Client-side filtering
     const filteredProviders = useMemo(() => {
         console.log('Filtering - Total providers:', allProviders.length);
-        console.log('Filter settings:', { inNetwork, maxCost, minRating, searchQuery });
+        console.log('Filter settings:', { inNetwork, maxCost, minRating, searchQuery, maxDistance });
 
-        let filtered = allProviders;
+        let filtered = allProviders.map(p => {
+            // Use cached driving distance if available, otherwise calculate straight-line distance
+            let distance = null;
+            if (currentLocation && p.latitude && p.longitude) {
+                if (distanceCache[p.id] !== undefined) {
+                    // Use API driving distance
+                    distance = distanceCache[p.id];
+                } else {
+                    // Fallback to straight-line distance
+                    distance = calculateStraightLineDistance(
+                        currentLocation.latitude,
+                        currentLocation.longitude,
+                        p.latitude,
+                        p.longitude
+                    );
+                }
+            }
+            return { ...p, distance };
+        });
+
+        // Filter by distance if current location is available
+        if (currentLocation) {
+            filtered = filtered.filter(p => p.distance === null || p.distance <= maxDistance);
+            console.log('After distance filter (≤', maxDistance, 'mi):', filtered.length);
+        }
 
         // Filter by in-network (only if toggle is ON)
         if (inNetwork) {
@@ -110,9 +276,18 @@ export default function FindProvider() {
             console.log('After search filter:', filtered.length);
         }
 
+        // Sort by distance if location is available
+        if (currentLocation) {
+            filtered.sort((a, b) => {
+                if (a.distance === null) return 1;
+                if (b.distance === null) return -1;
+                return a.distance - b.distance;
+            });
+        }
+
         console.log('Final filtered count:', filtered.length);
         return filtered;
-    }, [allProviders, inNetwork, maxCost, minRating, searchQuery]);
+    }, [allProviders, inNetwork, maxCost, minRating, searchQuery, maxDistance, currentLocation, distanceCache]);
 
     if (loading) {
         return (
@@ -133,6 +308,11 @@ export default function FindProvider() {
                         <Text style={styles.debugText}>
                             📊 Loaded: {allProviders.length} | Showing: {filteredProviders.length}
                         </Text>
+                        {currentLocation && (
+                            <Text style={styles.debugText}>
+                                📍 Location: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
+                            </Text>
+                        )}
                     </View>
 
                     {/* Search */}
@@ -171,7 +351,7 @@ export default function FindProvider() {
 
                     {/* Min Rating Slider */}
                     <View style={styles.filterRow}>
-                        <Text style={styles.filterLabel}>Min Rating: {minRating.toFixed(1)}⭐</Text>
+                        <Text style={styles.filterLabel}>Min Rating: {minRating.toFixed(1)}</Text>
                     </View>
                     <Slider
                         minimumValue={0}
@@ -182,6 +362,24 @@ export default function FindProvider() {
                         minimumTrackTintColor="#FFD700"
                         thumbTintColor="#FFD700"
                     />
+
+                    {/* Max Distance Slider */}
+                    {currentLocation && (
+                        <>
+                            <View style={styles.filterRow}>
+                                <Text style={styles.filterLabel}>Max Distance: {maxDistance} miles</Text>
+                            </View>
+                            <Slider
+                                minimumValue={5}
+                                maximumValue={100}
+                                step={5}
+                                value={maxDistance}
+                                onValueChange={setMaxDistance}
+                                minimumTrackTintColor="#00A86B"
+                                thumbTintColor="#00A86B"
+                            />
+                        </>
+                    )}
 
                     {/* View Mode Toggle */}
                     <View style={styles.viewModeContainer}>
@@ -229,6 +427,7 @@ export default function FindProvider() {
                         style={styles.map}
                         region={region}
                         providers={filteredProviders.filter(p => p.latitude && p.longitude)}
+                        currentLocation={currentLocation}
                         onMarkerPress={(provider) => setSelectedProvider(provider)}
                     />
                     {filteredProviders.filter(p => p.latitude && p.longitude).length === 0 && (
@@ -263,8 +462,11 @@ export default function FindProvider() {
                                     <Text style={[styles.badge, item.in_network ? styles.badgeInNetwork : styles.badgeOutNetwork]}>
                                         {item.in_network ? "In-Network" : "Out-of-Network"}
                                     </Text>
-                                    <Text style={styles.meta}>⭐ {item.rating}</Text>
+                                    <Text style={styles.meta}>Rating: {item.rating}</Text>
                                     <Text style={styles.meta}>${item.cost}</Text>
+                                    {item.distance !== null && (
+                                        <Text style={styles.meta}>{item.distance.toFixed(1)} mi</Text>
+                                    )}
                                 </View>
                             </View>
                             <MaterialIcons name="chevron-right" size={24} color="#002B5C" />
@@ -324,7 +526,23 @@ export default function FindProvider() {
                                             {selectedProvider.in_network ? "In-Network" : "Out-of-Network"}
                                         </Text>
                                     </View>
+                                    {selectedProvider.distance !== null && (
+                                        <View style={styles.modalInfoRow}>
+                                            <MaterialIcons name="near-me" size={20} color="#00A86B" />
+                                            <Text style={styles.modalInfoText}>
+                                                {selectedProvider.distance.toFixed(1)} miles away
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
+
+                                <TouchableOpacity
+                                    style={styles.modalDirectionsBtn}
+                                    onPress={() => openDirections(selectedProvider)}
+                                >
+                                    <MaterialIcons name="directions" size={20} color="#002B5C" />
+                                    <Text style={styles.modalDirectionsBtnText}>Get Directions</Text>
+                                </TouchableOpacity>
 
                                 <TouchableOpacity
                                     style={styles.modalBookBtn}
@@ -578,6 +796,24 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: "#333",
         fontWeight: "500",
+    },
+    modalDirectionsBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        backgroundColor: "#fff",
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 10,
+        marginTop: 8,
+        borderWidth: 2,
+        borderColor: "#002B5C",
+    },
+    modalDirectionsBtnText: {
+        color: "#002B5C",
+        fontSize: 16,
+        fontWeight: "700",
     },
     modalBookBtn: {
         flexDirection: "row",
