@@ -65,41 +65,21 @@ export async function checkUserExists(token) {
 
 
 async function handleResponse(res) {
-    console.log("🔍 handleResponse called with status:", res.status);
-
     let data;
     try {
-        const rawText = await res.text();
-        console.log("   - Raw response text:", rawText.substring(0, 500));
-
-        try {
-            data = JSON.parse(rawText);
-            console.log("   - Parsed JSON successfully:", data);
-        } catch (parseError) {
-            console.error("   - JSON parse failed:", parseError.message);
-            data = { error: `HTTP ${res.status}: Response parsing failed`, rawText };
-        }
-    } catch (error) {
-        console.error("   - Failed to read response text:", error);
-        data = { error: `HTTP ${res.status}: Could not read response` };
+        data = await res.json();
+    } catch {
+        data = { error: `HTTP ${res.status}: Response parsing failed` };
     }
 
     if (!res.ok) {
-        console.error("   - Response NOT OK");
-        console.error("   - Status:", res.status);
-        console.error("   - Data:", data);
-
         const message = data.error || `Request failed with status ${res.status}`;
         const err = new Error(message);
         err.status = res.status;
         err.details = data.details || null;
-        err.rawData = data;
-
-        console.error("   - Throwing error:", err);
         throw err;
     }
 
-    console.log("   - Response OK, returning data");
     return data;
 }
 
@@ -145,37 +125,15 @@ export async function getAppointments(token) {
 }
 
 export async function bookAppointment(token, appointmentData) {
-    console.log("🌐 API Call: bookAppointment");
-    console.log("   - URL:", `${BACKEND_URL}/appointments`);
-    console.log("   - Method: POST");
-    console.log("   - Token (first 30 chars):", token.substring(0, 30) + "...");
-    console.log("   - Body:", JSON.stringify(appointmentData, null, 2));
-
-    try {
-        const res = await fetch(`${BACKEND_URL}/appointments`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(appointmentData),
-        });
-
-        console.log("📥 Response received:");
-        console.log("   - Status:", res.status);
-        console.log("   - Status Text:", res.statusText);
-        console.log("   - Headers:", Object.fromEntries(res.headers.entries()));
-
-        const result = await handleResponse(res);
-        console.log("✅ Response processed successfully:", result);
-        return result;
-    } catch (error) {
-        console.error("❌ bookAppointment failed:");
-        console.error("   - Error:", error);
-        console.error("   - Message:", error.message);
-        console.error("   - Status:", error.status);
-        throw error;
-    }
+    const res = await fetch(`${BACKEND_URL}/appointments`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(appointmentData),
+    });
+    return handleResponse(res);
 }
 
 export async function updateAppointment(token, id, updates) {
@@ -196,6 +154,18 @@ export async function deleteAppointment(token, id) {
         headers: {
             Authorization: `Bearer ${token}`,
         },
+    });
+    return handleResponse(res);
+}
+
+export async function calculateDistances(token, origin, destinations) {
+    const res = await fetch(`${BACKEND_URL}/distances/calculate`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ origin, destinations }),
     });
     return handleResponse(res);
 }

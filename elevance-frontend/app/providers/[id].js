@@ -54,15 +54,14 @@ export default function ProviderDetails() {
                     // Group slots by date
                     const dates = {};
                     slots.forEach(slot => {
-                        const date = new Date(slot).toISOString().split('T')[0];
+                        // Extract date portion directly (slot format: "2025-11-13 12:00:00")
+                        const date = slot.split(' ')[0];
                         if (!dates[date]) {
                             dates[date] = [];
                         }
                         dates[date].push(slot);
                     });
                     setAvailableDates(Object.keys(dates).sort());
-
-                    console.log(`✅ Loaded ${slots.length} available slots across ${Object.keys(dates).length} days`);
                 } else {
                     showAlert("Error", "Provider not found");
                 }
@@ -99,7 +98,7 @@ export default function ProviderDetails() {
     }
 
     const timeSlotsForSelectedDate = selectedDate
-        ? availableSlots.filter(slot => new Date(slot).toISOString().split('T')[0] === selectedDate)
+        ? availableSlots.filter(slot => slot.split(' ')[0] === selectedDate)
         : [];
 
     // Generate calendar grid (next 28 days)
@@ -183,7 +182,7 @@ export default function ProviderDetails() {
                 {selectedDate && (
                     <>
                         <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
-                            Available Times for {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                            Available Times for {new Date(selectedDate + " 00:00:00").toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </Text>
                         <View style={styles.timeSlotsContainer}>
                             {timeSlotsForSelectedDate.map((slot) => {

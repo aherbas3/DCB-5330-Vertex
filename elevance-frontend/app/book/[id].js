@@ -19,78 +19,38 @@ export default function BookAppointment() {
     }, []);
 
     const handleConfirmBooking = async () => {
-        console.log("\n==================== CONFIRM BOOKING CLICKED ====================");
-        addDebugLog("Confirm booking clicked");
-
-        console.log("🔍 Step 1: Checking auth state");
-        console.log("   - Auth object exists:", !!auth);
-        console.log("   - Current user:", auth?.currentUser?.email || "NO USER");
-        console.log("   - User UID:", auth?.currentUser?.uid || "NO UID");
-        addDebugLog("Auth check", {
-            authExists: !!auth,
-            userEmail: auth?.currentUser?.email
-        });
-
         if (!auth) {
-            console.error("❌ FAIL: No auth object");
-            addDebugLog("FAIL: No auth object");
             showAlert("Error", "Authentication required. Please sign in first.");
             router.replace("/");
             return;
         }
 
-        console.log("🔍 Step 2: Checking booking details");
-        console.log("   - Slot:", slot);
-        console.log("   - ProviderId:", providerId);
-        console.log("   - ProviderName:", providerName);
-        addDebugLog("Booking details check", { slot, providerId, providerName });
-
         if (!slot || !providerId) {
-            console.error("❌ FAIL: Missing slot or providerId");
-            addDebugLog("FAIL: Missing booking details");
             showAlert("Error", "Missing appointment details.");
             return;
         }
 
         try {
             setLoading(true);
-            console.log("🔍 Step 3: Getting current user");
             const user = auth.currentUser;
 
             if (!user) {
-                console.error("❌ FAIL: auth.currentUser is null");
-                addDebugLog("FAIL: No current user");
                 showAlert("Error", "Please sign in to book an appointment.");
                 router.replace("/");
                 return;
             }
 
-            console.log("✅ User found:", {
-                email: user.email,
-                uid: user.uid,
-                emailVerified: user.emailVerified
-            });
-            addDebugLog("User found", { email: user.email, uid: user.uid });
-
-            console.log("🔍 Step 4: Getting ID token");
             const token = await user.getIdToken();
-            console.log("✅ Token obtained (first 50 chars):", token.substring(0, 50) + "...");
-            addDebugLog("Token obtained", { tokenLength: token.length });
 
-            console.log("🔍 Step 5: Parsing slot date");
-            const slotDate = new Date(slot);
-            console.log("   - Slot input:", slot);
-            console.log("   - Parsed date:", slotDate);
-            console.log("   - Is valid date:", !isNaN(slotDate.getTime()));
-
-            // Format date and time for the API
-            const appointmentDate = slotDate.toISOString().split('T')[0]; // YYYY-MM-DD
-            const startTime = slotDate.toTimeString().substring(0, 5); // HH:MM
+            // Parse slot directly without timezone conversion
+            // slot format: "2025-11-13 12:00:00" (space, not T)
+            const [appointmentDate, timeWithSeconds] = slot.split(' ');
+            const startTime = timeWithSeconds.substring(0, 5); // Get HH:mm
 
             // Calculate end time (1 hour later)
-            const endDate = new Date(slotDate);
-            endDate.setHours(endDate.getHours() + 1);
-            const endTime = endDate.toTimeString().substring(0, 5);
+            const [hours, minutes] = startTime.split(':').map(Number);
+            const endHours = (hours + 1).toString().padStart(2, '0');
+            const endTime = `${endHours}:${minutes.toString().padStart(2, '0')}`;
 
             const appointmentData = {
                 provider_id: parseInt(providerId),
@@ -101,18 +61,7 @@ export default function BookAppointment() {
                 notes: "Booked via web app",
             };
 
-            console.log("🔍 Step 6: Appointment data prepared");
-            console.log("📤 Full appointment data:", JSON.stringify(appointmentData, null, 2));
-            addDebugLog("Appointment data", appointmentData);
-
-            console.log("🔍 Step 7: Calling bookAppointment API");
-            console.log("   - Backend URL:", process.env.EXPO_PUBLIC_BACKEND_URL || "http://127.0.0.1:5050");
-
             const result = await bookAppointment(token, appointmentData);
-
-            console.log("✅✅✅ SUCCESS! Appointment booked!");
-            console.log("📥 Response:", JSON.stringify(result, null, 2));
-            addDebugLog("SUCCESS: Appointment booked", result);
 
             showAlert(
                 "Success!",
@@ -122,38 +71,17 @@ export default function BookAppointment() {
                 }
             );
         } catch (error) {
-            console.error("\n❌❌❌ BOOKING FAILED ❌❌❌");
-            console.error("Error object:", error);
-            console.error("Error message:", error.message);
-            console.error("Error status:", error.status);
-            console.error("Error details:", error.details);
-            console.error("Error stack:", error.stack);
-
-            addDebugLog("BOOKING FAILED", {
-                message: error.message,
-                status: error.status,
-                details: error.details
-            });
+            console.error("Booking error:", error);
 
             let errorMessage = "Failed to book appointment. Please try again.";
 
             if (error.status === 401) {
                 errorMessage = "Authentication failed. Please sign in again.";
-                console.error("→ 401 Error: Token might be invalid or expired");
                 router.replace("/");
-            } else if (error.status === 404) {
-                errorMessage = "Provider or endpoint not found.";
-                console.error("→ 404 Error: Check if backend endpoint exists");
-            } else if (error.status === 500) {
-                errorMessage = "Server error. Please try again later.";
-                console.error("→ 500 Error: Backend server issue");
             } else if (error.message?.includes("Time slot not available")) {
                 errorMessage = "This time slot is no longer available. Please choose another time.";
             } else if (error.message?.includes("user not found")) {
                 errorMessage = "User account not found. Please sign up first.";
-            } else if (error.message?.includes("Network request failed")) {
-                errorMessage = "Network error. Check your connection.";
-                console.error("→ Network Error: Cannot reach backend");
             } else if (error.message) {
                 errorMessage = error.message;
             }
@@ -161,7 +89,6 @@ export default function BookAppointment() {
             showAlert("Booking Failed", errorMessage);
         } finally {
             setLoading(false);
-            console.log("==================== BOOKING ATTEMPT COMPLETE ====================\n");
         }
     };
 
@@ -179,7 +106,10 @@ export default function BookAppointment() {
         );
     }
 
+    // Parse slot without timezone conversion
+    // slot format: "2025-11-13 12:00:00" (space, not T)
     const slotDate = new Date(slot);
+
     const formattedDate = slotDate.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
@@ -253,25 +183,6 @@ export default function BookAppointment() {
                     <Text style={styles.noteText}>
                         You will receive a confirmation email once your appointment is confirmed by the provider.
                     </Text>
-                </View>
-
-                {/* Debug Panel */}
-                <View style={styles.debugPanel}>
-                    <Text style={styles.debugTitle}>🔍 Debug Info (Check Console for Full Logs)</Text>
-                    <Text style={styles.debugText}>Auth: {auth ? '✅ Loaded' : '❌ Not loaded'}</Text>
-                    <Text style={styles.debugText}>User: {auth?.currentUser?.email || '❌ No user'}</Text>
-                    <Text style={styles.debugText}>Provider ID: {providerId || '❌ Missing'}</Text>
-                    <Text style={styles.debugText}>Slot: {slot || '❌ Missing'}</Text>
-                    {debugInfo.length > 0 && (
-                        <View style={styles.debugLogContainer}>
-                            <Text style={styles.debugLogTitle}>Recent logs:</Text>
-                            {debugInfo.slice(-5).reverse().map((log, idx) => (
-                                <Text key={idx} style={styles.debugLogText}>
-                                    [{log.timestamp}] {log.message}
-                                </Text>
-                            ))}
-                        </View>
-                    )}
                 </View>
 
                 <TouchableOpacity
@@ -432,43 +343,5 @@ const styles = StyleSheet.create({
     backButtonText: {
         color: "#fff",
         fontWeight: "600",
-    },
-    debugPanel: {
-        backgroundColor: "#FFF3CD",
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: "#FFC107",
-    },
-    debugTitle: {
-        fontSize: 14,
-        fontWeight: "700",
-        color: "#856404",
-        marginBottom: 8,
-    },
-    debugText: {
-        fontSize: 12,
-        color: "#856404",
-        marginBottom: 4,
-        fontFamily: "monospace",
-    },
-    debugLogContainer: {
-        marginTop: 8,
-        paddingTop: 8,
-        borderTopWidth: 1,
-        borderTopColor: "#FFC107",
-    },
-    debugLogTitle: {
-        fontSize: 11,
-        fontWeight: "700",
-        color: "#856404",
-        marginBottom: 4,
-    },
-    debugLogText: {
-        fontSize: 10,
-        color: "#856404",
-        fontFamily: "monospace",
-        marginBottom: 2,
     },
 });

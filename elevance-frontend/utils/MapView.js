@@ -17,7 +17,7 @@ if (Platform.OS === 'web') {
 }
 
 // Custom MapView wrapper that adds Google Maps API key for web
-function CustomMapView({ providers = [], region, style, onMarkerPress, ...props }) {
+function CustomMapView({ providers = [], currentLocation, region, style, onMarkerPress, ...props }) {
     const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
     const mapRef = React.useRef(null);
 
@@ -25,11 +25,6 @@ function CustomMapView({ providers = [], region, style, onMarkerPress, ...props 
     const webProps = Platform.OS === 'web' ? {
         googleMapsApiKey: googleMapsApiKey,
     } : {};
-
-    // Log when providers change to verify filtering is working
-    React.useEffect(() => {
-        console.log(`📍 MapView: Rendering ${providers.length} providers`);
-    }, [providers.length]);
 
     // Auto-fit map bounds when providers change
     React.useEffect(() => {
@@ -80,12 +75,26 @@ function CustomMapView({ providers = [], region, style, onMarkerPress, ...props 
                             longitude: provider.longitude,
                         }}
                         title={provider.name}
-                        description={`${provider.specialty} • ⭐ ${provider.rating} • $${provider.cost}`}
+                        description={`${provider.specialty} • Rating: ${provider.rating} • $${provider.cost}`}
                         pinColor={provider.in_network ? '#1A3673' : '#B20000'}
                         onPress={() => onMarkerPress && onMarkerPress(provider)}
                     />
                 );
             })}
+
+            {/* Current Location Marker */}
+            {currentLocation && (
+                <Marker
+                    key="current-location"
+                    coordinate={{
+                        latitude: currentLocation.latitude,
+                        longitude: currentLocation.longitude,
+                    }}
+                    title="Your Location"
+                    description="You are here"
+                    pinColor="#00A86B"
+                />
+            )}
         </RNMapView>
     );
 }
