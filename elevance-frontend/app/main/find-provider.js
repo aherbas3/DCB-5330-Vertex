@@ -306,11 +306,11 @@ export default function FindProvider() {
                     {/* Debug Info */}
                     <View style={styles.debugPanel}>
                         <Text style={styles.debugText}>
-                            📊 Loaded: {allProviders.length} | Showing: {filteredProviders.length}
+                            Loaded: {allProviders.length} | Showing: {filteredProviders.length}
                         </Text>
                         {currentLocation && (
                             <Text style={styles.debugText}>
-                                📍 Location: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
+                                 Location: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
                             </Text>
                         )}
                     </View>
