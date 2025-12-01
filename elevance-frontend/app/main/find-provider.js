@@ -29,6 +29,8 @@ export default function FindProvider() {
     const [viewMode, setViewMode] = useState("list"); // "map" or "list"
     const [selectedProvider, setSelectedProvider] = useState(null); // For modal
     const [currentLocation, setCurrentLocation] = useState(null);
+    const [manualLat, setManualLat] = useState("");
+    const [manualLon, setManualLon] = useState("");
 
     // Filter states - Start with permissive defaults
     const [inNetwork, setInNetwork] = useState(false);
@@ -53,34 +55,67 @@ export default function FindProvider() {
         })();
     }, []);
 
-    // Get current location
-    useEffect(() => {
-        (async () => {
-            try {
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== 'granted') {
-                    console.log('Location permission denied');
-                    return;
-                }
+    // Functions to set location manually
+    const handleSetLocation = () => {
+        const lat = parseFloat(manualLat);
+        const lon = parseFloat(manualLon);
 
-                const location = await Location.getCurrentPositionAsync({});
-                setCurrentLocation({
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                });
+        if (isNaN(lat) || isNaN(lon)) {
+            alert("Please enter valid latitude and longitude numbers");
+            return;
+        }
 
-                // Update map region to center on user's location
-                setRegion({
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                    latitudeDelta: 0.1,
-                    longitudeDelta: 0.1,
-                });
-            } catch (error) {
-                console.error('Error getting location:', error);
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            alert("Latitude must be between -90 and 90, Longitude must be between -180 and 180");
+            return;
+        }
+
+        setCurrentLocation({
+            latitude: lat,
+            longitude: lon,
+        });
+
+        // Update map region to center on selected location
+        setRegion({
+            latitude: lat,
+            longitude: lon,
+            latitudeDelta: 0.1,
+            longitudeDelta: 0.1,
+        });
+    };
+
+    // Optional: Use current location if user clicks button
+    const handleUseCurrentLocation = async () => {
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                alert('Location permission denied. Please enter location manually.');
+                return;
             }
-        })();
-    }, []);
+
+            const location = await Location.getCurrentPositionAsync({});
+            const lat = location.coords.latitude;
+            const lon = location.coords.longitude;
+
+            setManualLat(lat.toString());
+            setManualLon(lon.toString());
+            setCurrentLocation({
+                latitude: lat,
+                longitude: lon,
+            });
+
+            // Update map region to center on user's location
+            setRegion({
+                latitude: lat,
+                longitude: lon,
+                latitudeDelta: 0.1,
+                longitudeDelta: 0.1,
+            });
+        } catch (error) {
+            console.error('Error getting location:', error);
+            alert('Failed to get your location. Please enter it manually.');
+        }
+    };
 
     // Fetch all providers once
     useEffect(() => {
@@ -96,10 +131,26 @@ export default function FindProvider() {
                 }
 
                 const token = await user.getIdToken();
+                console.log("🔍 Fetching providers from backend...");
                 const data = await getAllProviders(token);
+                console.log("✅ Providers fetched:", data);
+                console.log("📊 Total providers received:", data.providers?.length || 0);
+                
+                // Log first provider to check data structure
+                if (data.providers && data.providers.length > 0) {
+                    console.log("📍 Sample provider:", {
+                        id: data.providers[0].id,
+                        name: data.providers[0].name,
+                        lat: data.providers[0].latitude,
+                        lon: data.providers[0].longitude
+                    });
+                }
+                
                 setAllProviders(data.providers || []);
             } catch (err) {
-                console.error("Failed to fetch providers:", err);
+                console.error("❌ Failed to fetch providers:", err);
+                console.error("Error details:", err.message, err.stack);
+                alert(`Failed to fetch providers: ${err.message}`);
             } finally {
                 setLoading(false);
             }
@@ -223,8 +274,20 @@ export default function FindProvider() {
 
     // Client-side filtering
     const filteredProviders = useMemo(() => {
-        console.log('Filtering - Total providers:', allProviders.length);
-        console.log('Filter settings:', { inNetwork, maxCost, minRating, searchQuery, maxDistance });
+        console.log('🔍 Filtering - Total providers:', allProviders.length);
+        console.log('⚙️  Filter settings:', { inNetwork, maxCost, minRating, searchQuery, maxDistance });
+        console.log('📍 Current location:', currentLocation);
+        
+        // Check if providers have location data
+        const providersWithLocation = allProviders.filter(p => p.latitude && p.longitude);
+        console.log('🗺️  Providers with location data:', providersWithLocation.length);
+        if (providersWithLocation.length > 0) {
+            console.log('📍 Sample provider location:', {
+                name: providersWithLocation[0].name,
+                lat: providersWithLocation[0].latitude,
+                lon: providersWithLocation[0].longitude
+            });
+        }
 
         let filtered = allProviders.map(p => {
             // Use cached driving distance if available, otherwise calculate straight-line distance
@@ -303,16 +366,59 @@ export default function FindProvider() {
             {/* Filters Panel - Always Visible */}
             <View style={styles.filtersContainer}>
                 <ScrollView style={styles.filterPanel} nestedScrollEnabled>
+                    {/* Location Selection */}
+                    <View style={styles.locationSection}>
+                        <Text style={styles.filterLabel}>📍 Set Your Location</Text>
+                        <View style={styles.locationInputRow}>
+                            <View style={styles.locationInputContainer}>
+                                <Text style={styles.locationInputLabel}>Latitude</Text>
+                                <TextInput
+                                    style={styles.locationInput}
+                                    placeholder="e.g., 38.6582"
+                                    value={manualLat}
+                                    onChangeText={setManualLat}
+                                    keyboardType="numeric"
+                                />
+                            </View>
+                            <View style={styles.locationInputContainer}>
+                                <Text style={styles.locationInputLabel}>Longitude</Text>
+                                <TextInput
+                                    style={styles.locationInput}
+                                    placeholder="e.g., -77.2497"
+                                    value={manualLon}
+                                    onChangeText={setManualLon}
+                                    keyboardType="numeric"
+                                />
+                            </View>
+                        </View>
+                        <View style={styles.locationButtonRow}>
+                            <TouchableOpacity
+                                style={[styles.locationButton, styles.locationButtonPrimary]}
+                                onPress={handleSetLocation}
+                            >
+                                <MaterialIcons name="location-on" size={20} color="#fff" />
+                                <Text style={styles.locationButtonText}>Set Location</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.locationButton, styles.locationButtonSecondary]}
+                                onPress={handleUseCurrentLocation}
+                            >
+                                <MaterialIcons name="my-location" size={20} color="#1A3673" />
+                                <Text style={[styles.locationButtonText, styles.locationButtonTextSecondary]}>Use Current</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {currentLocation && (
+                            <Text style={styles.locationStatus}>
+                                ✓ Location set: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
+                            </Text>
+                        )}
+                    </View>
+
                     {/* Debug Info */}
                     <View style={styles.debugPanel}>
                         <Text style={styles.debugText}>
                             📊 Loaded: {allProviders.length} | Showing: {filteredProviders.length}
                         </Text>
-                        {currentLocation && (
-                            <Text style={styles.debugText}>
-                                📍 Location: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
-                            </Text>
-                        )}
                     </View>
 
                     {/* Search */}
@@ -587,6 +693,72 @@ const styles = StyleSheet.create({
     },
     filterPanel: {
         padding: 16,
+    },
+    locationSection: {
+        backgroundColor: "#E8F4F8",
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: "#1A3673",
+    },
+    locationInputRow: {
+        flexDirection: "row",
+        gap: 8,
+        marginBottom: 12,
+    },
+    locationInputContainer: {
+        flex: 1,
+    },
+    locationInputLabel: {
+        fontSize: 12,
+        color: "#002B5C",
+        marginBottom: 4,
+        fontWeight: "600",
+    },
+    locationInput: {
+        borderWidth: 1,
+        borderColor: "#ccc",
+        borderRadius: 6,
+        padding: 8,
+        backgroundColor: "#fff",
+        fontSize: 14,
+    },
+    locationButtonRow: {
+        flexDirection: "row",
+        gap: 8,
+        marginBottom: 8,
+    },
+    locationButton: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 10,
+        borderRadius: 6,
+        gap: 6,
+    },
+    locationButtonPrimary: {
+        backgroundColor: "#1A3673",
+    },
+    locationButtonSecondary: {
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: "#1A3673",
+    },
+    locationButtonText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 14,
+    },
+    locationButtonTextSecondary: {
+        color: "#1A3673",
+    },
+    locationStatus: {
+        fontSize: 12,
+        color: "#00A86B",
+        fontWeight: "600",
+        marginTop: 4,
     },
     debugPanel: {
         backgroundColor: "#FFF3CD",

@@ -3,21 +3,31 @@ const router = express.Router();
 const { query, supabase } = require("../supabaseClient");
 const { verifyFirebaseToken } = require("../auth/authorizetokens");
 
+// IMPORTANT: Specific routes must come BEFORE dynamic routes (/:id)
+// Otherwise Express will match /all as /:id with id="all"
+
 // Get all providers (for client-side filtering)
 router.get("/all", verifyFirebaseToken, async (req, res) => {
     try {
-        const { data, error } = await supabase
-            .from('providers')
-            .select('id, name, specialty, cost, rating, in_network, latitude, longitude')
-            .order('rating', { ascending: false });
-
-        if (error) {
-            throw error;
-        }
-
-        res.json({ providers: data });
+        console.log("📋 Fetching all providers...");
+        
+        // Use raw SQL to extract latitude/longitude from PostGIS geometry
+        const sql = `
+            SELECT id, name, specialty, cost, rating, in_network,
+                   ST_Y(location::geometry) AS latitude, 
+                   ST_X(location::geometry) AS longitude
+            FROM providers
+            ORDER BY rating DESC
+        `;
+        
+        console.log("🔍 Executing SQL query...");
+        const result = await query(sql, []);
+        console.log(`✅ Found ${result.rows.length} providers`);
+        
+        res.json({ providers: result.rows });
     } catch (err) {
-        console.error("Error fetching all providers:", err);
+        console.error("❌ Error fetching all providers:", err);
+        console.error("Error stack:", err.stack);
         res.status(500).json({
             error: "Failed to fetch providers",
             details: err.message,
@@ -25,6 +35,7 @@ router.get("/all", verifyFirebaseToken, async (req, res) => {
     }
 });
 
+// Search providers with geographic filtering
 router.get("/search", verifyFirebaseToken, async (req, res) => {
     const { lat, lon, maxDistance = 25, in_network, minRating, maxCost } = req.query;
     let filters = [];
@@ -58,6 +69,7 @@ router.get("/search", verifyFirebaseToken, async (req, res) => {
 });
 
 // Get available time slots for a provider
+// This MUST come after /all and /search routes
 router.get("/:id/slots", verifyFirebaseToken, async (req, res) => {
     try {
         const { id } = req.params;

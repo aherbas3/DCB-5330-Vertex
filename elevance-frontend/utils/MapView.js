@@ -21,6 +21,13 @@ function CustomMapView({ providers = [], currentLocation, region, style, onMarke
     const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
     const mapRef = React.useRef(null);
 
+    // Debug: Log if API key is missing (only log once)
+    React.useEffect(() => {
+        if (Platform.OS === 'web' && !googleMapsApiKey) {
+            console.warn('⚠️ Google Maps API key not found. Please add EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to your .env file');
+        }
+    }, []);
+
     // For web, we need to add the googleMapsApiKey prop
     const webProps = Platform.OS === 'web' ? {
         googleMapsApiKey: googleMapsApiKey,

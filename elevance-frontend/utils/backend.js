@@ -85,12 +85,19 @@ async function handleResponse(res) {
 
 // Get all providers (for client-side filtering)
 export async function getAllProviders(token) {
-    const res = await fetch(`${BACKEND_URL}/providers/all`, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
-    return handleResponse(res);
+    try {
+        console.log(`🌐 Fetching from: ${BACKEND_URL}/providers/all`);
+        const res = await fetch(`${BACKEND_URL}/providers/all`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        console.log(`📡 Response status: ${res.status} ${res.statusText}`);
+        return handleResponse(res);
+    } catch (err) {
+        console.error("❌ Network error fetching providers:", err);
+        throw err;
+    }
 }
 
 // Get provider's available time slots
