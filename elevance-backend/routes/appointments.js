@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { supabase } = require("../supabaseClient");
 const { verifyFirebaseToken } = require("../auth/authorizetokens");
-const notificationService = require("../services/notificationService");
+const googleCalendarService = require("../services/googleCalendarService");
+const { generateAppointmentCalendarUrl } = require("../utils/calendarHelper");
 
 // Get user's appointments
 router.get("/", verifyFirebaseToken, async (req, res) => {
@@ -27,7 +28,13 @@ router.get("/", verifyFirebaseToken, async (req, res) => {
 
         if (error) throw error;
 
-        res.json({ appointments: data });
+        // Add Google Calendar URL to each appointment
+        const appointmentsWithCalendarUrl = data.map(appointment => ({
+            ...appointment,
+            googleCalendarUrl: generateAppointmentCalendarUrl(appointment)
+        }));
+
+        res.json({ appointments: appointmentsWithCalendarUrl });
     } catch (err) {
         console.error("Error fetching appointments:", err);
         res.status(500).json({ error: "Failed to fetch appointments", details: err.message });
@@ -102,13 +109,6 @@ router.post("/", verifyFirebaseToken, async (req, res) => {
             throw error;
         }
 
-        // Fetch user's phone number for SMS notification
-        const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('phone_number, first_name')
-            .eq('firebase_uid', uid)
-            .single();
-
         // Fetch provider name
         const { data: providerData, error: providerError } = await supabase
             .from('providers')
@@ -116,8 +116,8 @@ router.post("/", verifyFirebaseToken, async (req, res) => {
             .eq('id', provider_id)
             .single();
 
-        // Send SMS notification if phone number exists
-        if (userData && userData.phone_number && providerData) {
+        // Send email notification
+        if (email && providerData) {
             const appointmentDetails = {
                 providerName: providerData.name,
                 date: new Date(appointment_date).toLocaleDateString('en-US', {
@@ -134,18 +134,24 @@ router.post("/", verifyFirebaseToken, async (req, res) => {
                 })
             };
 
-            // Send SMS in background (don't await)
-            notificationService.sendAppointmentConfirmation(
-                userData.phone_number,
+            // Send email in background (don't await)
+            googleCalendarService.sendAppointmentConfirmation(
+                email,
                 appointmentDetails
             ).catch(err => {
-                console.error('SMS notification failed:', err);
+                console.error('Email notification failed:', err);
             });
         }
 
+        // Add Google Calendar URL to response
+        const appointmentWithCalendarUrl = {
+            ...data,
+            googleCalendarUrl: generateAppointmentCalendarUrl(data)
+        };
+
         res.status(201).json({
             message: "Appointment booked successfully",
-            appointment: data
+            appointment: appointmentWithCalendarUrl
         });
     } catch (err) {
         console.error("Error booking appointment:", err);
@@ -242,20 +248,10 @@ router.put("/:id", verifyFirebaseToken, async (req, res) => {
             throw updateError;
         }
 
-        // 5. Send SMS notification if appointment was cancelled
+        // 5. Send email notification if appointment was cancelled
         if (status === "cancelled") {
             try {
-                const { data: userData, error: userError } = await supabase
-                    .from("users")
-                    .select("phone_number")
-                    .eq("firebase_uid", uid)
-                    .single();
-
-                if (userError) {
-                    console.error("Error fetching user for SMS:", userError);
-                }
-
-                if (userData && userData.phone_number && data.providers) {
+                if (data.user_email && data.providers) {
                     const appointmentDetails = {
                         providerName: data.providers.name,
                         date: new Date(data.appointment_date).toLocaleDateString(
@@ -275,17 +271,17 @@ router.put("/:id", verifyFirebaseToken, async (req, res) => {
                         }),
                     };
 
-                    notificationService
+                    googleCalendarService
                         .sendAppointmentCancellation(
-                            userData.phone_number,
+                            data.user_email,
                             appointmentDetails
                         )
                         .catch((err) =>
-                            console.error("SMS notification failed:", err)
+                            console.error("Email notification failed:", err)
                         );
                 }
-            } catch (smsErr) {
-                console.error("Error during SMS cancellation flow:", smsErr);
+            } catch (emailErr) {
+                console.error("Error during email cancellation flow:", emailErr);
             }
         }
 

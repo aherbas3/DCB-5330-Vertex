@@ -50,4 +50,6 @@ router.get("/check", verifyFirebaseToken, async (req, res) => {
     }
 });
 
+
+
 module.exports = router;

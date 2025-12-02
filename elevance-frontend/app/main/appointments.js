@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
+    Linking,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { getFirebaseAuth } from "../../firebaseAuth";
@@ -82,6 +83,24 @@ export default function AppointmentsScreen() {
                 }
             },
         });
+    };
+
+    const handleAddToCalendar = async (appointment) => {
+        try {
+            if (appointment.googleCalendarUrl) {
+                const supported = await Linking.canOpenURL(appointment.googleCalendarUrl);
+                if (supported) {
+                    await Linking.openURL(appointment.googleCalendarUrl);
+                } else {
+                    showAlert("Error", "Unable to open Google Calendar");
+                }
+            } else {
+                showAlert("Error", "Calendar link not available");
+            }
+        } catch (err) {
+            console.error("Failed to open calendar:", err);
+            showAlert("Error", "Failed to open calendar. Please try again.");
+        }
     };
 
     const filteredAppointments = appointments.filter((appt) => {
@@ -247,6 +266,15 @@ export default function AppointmentsScreen() {
                                 )}
                             </View>
 
+                            {/* Add to Google Calendar Button */}
+                            <TouchableOpacity
+                                style={styles.calendarBtn}
+                                onPress={() => handleAddToCalendar(item)}
+                            >
+                                <MaterialIcons name="event" size={18} color="#fff" />
+                                <Text style={styles.calendarBtnText}>Add to Google Calendar</Text>
+                            </TouchableOpacity>
+
                             {canCancel && (
                                 <TouchableOpacity
                                     style={styles.cancelBtn}
@@ -330,8 +358,19 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     infoText: { fontSize: 14, color: "#333", flex: 1 },
-    cancelBtn: {
+    calendarBtn: {
         marginTop: 12,
+        padding: 12,
+        backgroundColor: "#4285f4",
+        borderRadius: 8,
+        alignItems: "center",
+        flexDirection: "row",
+        justifyContent: "center",
+        gap: 8,
+    },
+    calendarBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+    cancelBtn: {
+        marginTop: 8,
         padding: 10,
         backgroundColor: "#fff",
         borderRadius: 8,

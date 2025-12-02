@@ -3,12 +3,12 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { Platform } from "react-native";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyA8ow2Y9xPCAKpzEOmrk1RDSITf8x-U4cI",
-    authDomain: "elevance-health-af48d.firebaseapp.com",
-    projectId: "elevance-health-af48d",
-    storageBucket: "elevance-health-af48d.appspot.com",
-    messagingSenderId: "173590433233",
-    appId: "1:173590433233:web:59954c9080c39e360164f0",
+    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.EXPO_PUBLIC_AUTH_DOMAIN,
+    projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
+    storageBucket: process.env.EXPO_PUBLIC_STORAGE_BUCKET,
+    messagingSenderId: process.env.EXPO_PUBLIC_MESSAGING_SENDER_ID,
+    appId: process.env.EXPO_PUBLIC_APP_ID,
 };
 
 if (Platform.OS === 'android') {
