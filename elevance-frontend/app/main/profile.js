@@ -28,6 +28,7 @@ export default function ProfileScreen() {
     const [phone, setPhone] = useState("");
     const [language, setLanguage] = useState("English");
     const [notifications, setNotifications] = useState(false);
+    const [notificationMethod, setNotificationMethod] = useState("SMS");
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -76,6 +77,7 @@ export default function ProfileScreen() {
                     setPhone(profileData.phone_number || "");
                     setLanguage(profileData.language || "English");
                     setNotifications(profileData.notifications_enabled || false);
+                    setNotificationMethod(profileData.notification_method || "SMS");
 
                     console.log("✅ Profile loaded from backend");
                 } catch (error) {
@@ -86,6 +88,7 @@ export default function ProfileScreen() {
                         phone_number: "999-999-9999",
                         language: "English",
                         notifications_enabled: true,
+                        notification_method: "SMS",
                     };
 
                     await syncUser(token, defaultData);
@@ -94,6 +97,7 @@ export default function ProfileScreen() {
                     setPhone(defaultData.phone_number);
                     setLanguage(defaultData.language);
                     setNotifications(defaultData.notifications_enabled);
+                    setNotificationMethod(defaultData.notification_method || "SMS");
                 }
             } catch (error) {
                 console.error("❌ Failed to load profile:", error);
@@ -141,6 +145,7 @@ export default function ProfileScreen() {
                 phone_number: phone,
                 language,
                 notifications_enabled: notifications,
+                notification_method: notificationMethod,
             };
 
             await updateUserProfile(token, updates);
@@ -237,7 +242,7 @@ export default function ProfileScreen() {
             <View style={styles.notificationsContainer}>
                 <View>
                     <Text style={styles.label}>Notifications</Text>
-                    <Text style={styles.subText}>Sent through text messages.</Text>
+                    <Text style={styles.subText}>Receive appointment notifications via your preferred method.</Text>
                 </View>
                 <Switch
                     value={notifications}
@@ -247,6 +252,23 @@ export default function ProfileScreen() {
                     thumbColor={notifications ? "#fff" : "#888"}
                 />
             </View>
+
+            {/* Notification Method */}
+            {notifications && phone && (
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Notification Method</Text>
+                    <View style={styles.pickerContainer}>
+                        <Picker 
+                            selectedValue={notificationMethod} 
+                            onValueChange={setNotificationMethod}
+                            enabled={notifications && phone}
+                        >
+                            <Picker.Item label="SMS" value="SMS" />
+                            <Picker.Item label="WhatsApp" value="WhatsApp" />
+                        </Picker>
+                    </View>
+                </View>
+            )}
 
             {!phone && (
                 <Text style={styles.disabledNote}>

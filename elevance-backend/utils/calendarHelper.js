@@ -40,9 +40,11 @@ function generateGoogleCalendarUrl({ title, description, startTime, endTime, loc
 /**
  * Creates an appointment-specific Google Calendar URL
  * @param {Object} appointment - Appointment object from database
+ * @param {number} latitude - Optional provider latitude
+ * @param {number} longitude - Optional provider longitude
  * @returns {string} Google Calendar URL
  */
-function generateAppointmentCalendarUrl(appointment) {
+function generateAppointmentCalendarUrl(appointment, latitude = null, longitude = null) {
     const { provider_id, appointment_date, start_time, end_time, notes } = appointment;
 
     // Combine date and time for start
@@ -52,12 +54,19 @@ function generateAppointmentCalendarUrl(appointment) {
     // Get provider name if available
     const providerName = appointment.providers?.name || 'Healthcare Provider';
 
+    // Use coordinates for location if provided, otherwise use default
+    let location = 'Elevance Health';
+    if (latitude !== null && longitude !== null) {
+        // Format coordinates for Google Calendar (works for navigation)
+        location = `${latitude}, ${longitude}`;
+    }
+
     return generateGoogleCalendarUrl({
         title: `Appointment with ${providerName}`,
         description: notes || `Healthcare appointment with ${providerName}`,
         startTime: startDateTime,
         endTime: endDateTime,
-        location: 'Elevance Health',
+        location: location,
     });
 }
 

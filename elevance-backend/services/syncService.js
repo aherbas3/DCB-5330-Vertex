@@ -39,6 +39,7 @@ class SyncService {
             phone_number: "999-999-9999",
             language: "English",
             notifications_enabled: true,
+            notification_method: "SMS", // Default to SMS
         };
 
         const exists = await UserService.userExists(email);

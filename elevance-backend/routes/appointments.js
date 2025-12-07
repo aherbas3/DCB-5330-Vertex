@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const { supabase } = require("../supabaseClient");
+const { supabase, query } = require("../supabaseClient");
 const { verifyFirebaseToken } = require("../auth/authorizetokens");
 const googleCalendarService = require("../services/googleCalendarService");
 const { generateAppointmentCalendarUrl } = require("../utils/calendarHelper");
+const UserService = require("../services/userService");
+const notificationService = require("../services/notificationService");
 
 // Get user's appointments
 router.get("/", verifyFirebaseToken, async (req, res) => {
@@ -109,17 +111,97 @@ router.post("/", verifyFirebaseToken, async (req, res) => {
             throw error;
         }
 
-        // Fetch provider name
-        const { data: providerData, error: providerError } = await supabase
-            .from('providers')
-            .select('name')
-            .eq('id', provider_id)
-            .single();
+        // ========== SEGMENT 2: Fetch user profile to check notification preferences ==========
+        let userPhoneNumber = null;
+        let notificationsEnabled = false;
+        let notificationMethod = 'SMS'; // Default to SMS
+        let userId = null; // Database user ID for notification logging
+        
+        try {
+            const userProfile = await UserService.getUserByEmail(email);
+            if (userProfile) {
+                userPhoneNumber = userProfile.phone_number;
+                notificationsEnabled = userProfile.notifications_enabled || false;
+                notificationMethod = userProfile.notification_method || 'SMS'; // Get preferred method or default to SMS
+                userId = userProfile.id; // Database user ID for logging
+                
+                console.log('📱 User notification preferences:', {
+                    hasPhone: !!userPhoneNumber,
+                    notificationsEnabled: notificationsEnabled,
+                    notificationMethod: notificationMethod,
+                    userId: userId,
+                    phoneNumber: userPhoneNumber ? '***' + userPhoneNumber.slice(-4) : 'none'
+                });
+            } else {
+                console.log('⚠️ User profile not found for email:', email);
+            }
+        } catch (userError) {
+            console.error('⚠️ Failed to fetch user profile for notifications:', userError);
+            // Don't block booking if user profile fetch fails
+        }
+
+        // ========== SEGMENT 3: Fetch provider name and location ==========
+        let providerName = null;
+        let providerLatitude = null;
+        let providerLongitude = null;
+        
+        // Try Supabase client first (more reliable than raw SQL)
+        try {
+            const { data: providerData, error: supabaseError } = await supabase
+                .from('providers')
+                .select('name, latitude, longitude')
+                .eq('id', provider_id)
+                .single();
+            
+            if (supabaseError) {
+                console.error('⚠️ Failed to fetch provider via Supabase:', supabaseError.message);
+            } else if (providerData) {
+                providerName = providerData.name;
+                
+                // Get coordinates from latitude/longitude columns if available
+                if (typeof providerData.latitude === 'number' && typeof providerData.longitude === 'number' &&
+                    !isNaN(providerData.latitude) && !isNaN(providerData.longitude)) {
+                    providerLatitude = providerData.latitude;
+                    providerLongitude = providerData.longitude;
+                    console.log('📍 Provider location (from Supabase):', `${providerLatitude}, ${providerLongitude}`);
+                } else {
+                    console.log('⚠️ Provider found but no valid coordinates in latitude/longitude columns');
+                    // Fallback: Try SQL query to extract from PostGIS location field
+                    console.log('🔄 Attempting SQL query to extract from PostGIS location...');
+                    try {
+                        const locationQuery = `
+                            SELECT ST_Y(location::geometry) AS latitude,
+                                   ST_X(location::geometry) AS longitude
+                            FROM providers
+                            WHERE id = $1
+                        `;
+                        
+                        const locationResult = await query(locationQuery, [provider_id]);
+                        
+                        if (locationResult.rows && locationResult.rows.length > 0) {
+                            const coords = locationResult.rows[0];
+                            if (typeof coords.latitude === 'number' && typeof coords.longitude === 'number' &&
+                                !isNaN(coords.latitude) && !isNaN(coords.longitude)) {
+                                providerLatitude = coords.latitude;
+                                providerLongitude = coords.longitude;
+                                console.log('📍 Provider location (from PostGIS):', `${providerLatitude}, ${providerLongitude}`);
+                            }
+                        }
+                    } catch (sqlError) {
+                        console.error('⚠️ SQL query also failed:', sqlError.message);
+                    }
+                }
+            } else {
+                console.log('⚠️ Provider not found with id:', provider_id);
+            }
+        } catch (providerError) {
+            console.error('⚠️ Failed to fetch provider:', providerError.message);
+        }
 
         // Send email notification
-        if (email && providerData) {
+        if (email && providerName) {
             const appointmentDetails = {
-                providerName: providerData.name,
+                providerName: providerName,
                 date: new Date(appointment_date).toLocaleDateString('en-US', {
                     weekday: 'long',
                     year: 'numeric',
@@ -143,10 +225,92 @@ router.post("/", verifyFirebaseToken, async (req, res) => {
             });
         }
 
+        // Generate Google Calendar URL with provider coordinates
+        const appointmentWithProvider = {
+            ...data,
+            providers: providerName ? { name: providerName } : null
+        };
+        const googleCalendarUrl = generateAppointmentCalendarUrl(
+            appointmentWithProvider,
+            providerLatitude,
+            providerLongitude
+        );
+
+        // ========== SEGMENT 4: Send SMS notification if user has notifications enabled and phone number ==========
+        if (notificationsEnabled && userPhoneNumber && providerName) {
+            try {
+                // Format date and time compactly for SMS (e.g., "Dec 8 3 PM")
+                // Parse date: "YYYY-MM-DD" format
+                const [year, monthNum, day] = appointment_date.split('-').map(Number);
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const month = monthNames[monthNum - 1];
+                
+                // Parse time: "HH:mm" format (24-hour)
+                const [hour24, minute] = start_time.split(':').map(Number);
+                
+                // Convert to 12-hour format (e.g., "3 PM" or "11 AM")
+                const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+                const ampm = hour24 >= 12 ? 'PM' : 'AM';
+                const timeStr = minute > 0 ? `${hour12}:${minute.toString().padStart(2, '0')} ${ampm}` : `${hour12} ${ampm}`;
+                
+                // Compact date/time format: "Dec 8 3 PM"
+                const compactDateTime = `${month} ${day} ${timeStr}`;
+
+                // Prepare appointment details for SMS with compact format
+                const smsAppointmentDetails = {
+                    providerName: providerName,
+                    date: compactDateTime,  // Compact format: "Dec 8 3 PM"
+                    time: '',  // Not needed separately, included in date
+                    location: "Elevance Health's Midtown Clinic",  // Compact location text
+                    googleCalendarUrl: googleCalendarUrl                          // Calendar link with coordinates (will be shortened)
+                };
+
+                console.log('📱 Preparing notification with details:', {
+                    notificationMethod: notificationMethod,
+                    hasProviderName: !!providerName,
+                    compactDateTime: compactDateTime,
+                    hasLocation: !!smsAppointmentDetails.location,
+                    hasCalendarUrl: !!googleCalendarUrl,
+                    phoneNumber: userPhoneNumber ? '***' + userPhoneNumber.slice(-4) : 'none'
+                });
+
+                // Send notification via preferred method (SMS or WhatsApp) in background (don't await to avoid blocking response)
+                notificationService.sendAppointmentConfirmation(
+                    userPhoneNumber,
+                    smsAppointmentDetails,
+                    notificationMethod,  // Pass the preferred notification method
+                    userId  // Pass database user ID for logging
+                ).then(result => {
+                    if (result.success) {
+                        console.log(`✅ ${notificationMethod} sent successfully:`, result.messageSid);
+                    } else {
+                        console.error(`❌ ${notificationMethod} failed:`, result.error || result.message);
+                    }
+                }).catch(err => {
+                    console.error(`❌ ${notificationMethod} notification error:`, err);
+                    console.error('Error stack:', err.stack);
+                    // Don't throw - notification failure shouldn't block successful booking
+                });
+                
+                console.log(`📱 ${notificationMethod} notification queued for:`, userPhoneNumber ? '***' + userPhoneNumber.slice(-4) : 'unknown');
+            } catch (smsError) {
+                console.error('⚠️ Error preparing SMS notification:', smsError);
+                // Don't throw - SMS failure shouldn't block successful booking
+            }
+        } else {
+            if (!notificationsEnabled) {
+                console.log('📱 Notifications disabled for user');
+            } else if (!userPhoneNumber) {
+                console.log('📱 No phone number on file for notifications');
+            } else if (!providerName) {
+                console.log('📱 Provider name not available for notifications');
+            }
+        }
+
         // Add Google Calendar URL to response
         const appointmentWithCalendarUrl = {
             ...data,
-            googleCalendarUrl: generateAppointmentCalendarUrl(data)
+            googleCalendarUrl: googleCalendarUrl
         };
 
         res.status(201).json({
