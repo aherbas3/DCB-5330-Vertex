@@ -3,13 +3,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-nati
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { getFirebaseAuth } from "../../firebaseAuth";
-import { getAppointments } from "../../utils/backend";
+import { getAppointments, getUserProfile } from "../../utils/backend";
 
 export default function HomeScreen() {
     const router = useRouter();
     const [appointmentCount, setAppointmentCount] = useState(0);
     const [upcomingAppointments, setUpcomingAppointments] = useState([]);
     const [auth, setAuth] = useState(null);
+    const [userProfile, setUserProfile] = useState(null);
     const [showCostGuide, setShowCostGuide] = useState(false);
     const [expandedTerm, setExpandedTerm] = useState(null);
     const [openGlossary, setOpenGlossary] = useState(null);
@@ -114,6 +115,37 @@ export default function HomeScreen() {
         })();
     }, []);
 
+    // Load user profile data
+    useEffect(() => {
+        const loadUserProfile = async () => {
+            if (!auth) return;
+            const user = auth.currentUser;
+            if (!user) {
+                return;
+            }
+
+            try {
+                const token = await user.getIdToken();
+                const response = await getUserProfile(token);
+                const profileData = response.user;
+                
+                setUserProfile(profileData);
+                
+                // Log preventive_due_dates to verify structure
+                console.log('preventive_due_dates on home', profileData?.preventive_due_dates);
+                if (profileData?.preventive_due_dates) {
+                    console.log('preventive_due_dates structure:', JSON.stringify(profileData.preventive_due_dates, null, 2));
+                } else {
+                    console.log('preventive_due_dates is:', profileData?.preventive_due_dates);
+                }
+            } catch (error) {
+                // Handle errors gracefully - log but don't break the UI
+                console.warn("⚠️ Unable to load user profile on home screen:", error.message);
+            }
+        };
+        loadUserProfile();
+    }, [auth]);
+
     useEffect(() => {
         const loadAppointments = async () => {
             if (!auth) return;
@@ -139,6 +171,30 @@ export default function HomeScreen() {
         };
         loadAppointments();
     }, [auth]);
+
+    // Helper function to format preventive care dates
+    function formatPreventiveDate(dateStr) {
+        if (!dateStr) return '';
+        const [year, monthNum, day] = dateStr.split('-').map(Number);
+        if (!year || !monthNum || !day) return dateStr;
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthLabel = monthNames[monthNum - 1] || '';
+        return `${monthLabel} ${day} ${year}`;
+    }
+
+    // Helper function to map internal keys to friendly labels
+    function labelForPreventiveKey(key) {
+        const map = {
+            screening: 'Screening',
+            flu_shot: 'Flu shot',
+            annual_checkup: 'Annual checkup',
+        };
+        return map[key] || key.replace(/_/g, ' ');
+    }
+
+    // Safe local variable for preventive due dates
+    const preventiveDueDates = userProfile?.preventive_due_dates || {};
 
     return (
         <View style={styles.container}>
@@ -177,6 +233,29 @@ export default function HomeScreen() {
                     </View>
                     <MaterialIcons name="chevron-right" size={24} color="#ccc" />
                 </TouchableOpacity>
+
+                {/* Upcoming preventive care */}
+                <View style={styles.card}>
+                    <View style={styles.cardHeader}>
+                        <MaterialIcons name="health-and-safety" size={24} color="#002B5C" />
+                        <Text style={styles.cardTitle}>Upcoming preventive care</Text>
+                    </View>
+                    {Object.keys(preventiveDueDates).length === 0 ? (
+                        <Text style={styles.preventiveEmptyText}>
+                            No upcoming preventive care due yet.
+                        </Text>
+                    ) : (
+                        Object.entries(preventiveDueDates).map(([key, dateStr], index, array) => (
+                            <View key={key} style={[
+                                styles.preventiveRow,
+                                index === array.length - 1 && styles.preventiveRowLast
+                            ]}>
+                                <Text style={styles.preventiveLabel}>{labelForPreventiveKey(key)}</Text>
+                                <Text style={styles.preventiveDate}>{formatPreventiveDate(dateStr)}</Text>
+                            </View>
+                        ))
+                    )}
+                </View>
 
                 {/* Cost basics tutorial */}
                 <View style={styles.tutorialHeader}>
@@ -481,4 +560,18 @@ const styles = StyleSheet.create({
     glossaryDetailBox: { gap: 8 },
     glossaryExampleBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EAF3FF", padding: 8, borderRadius: 8 },
     glossaryExample: { fontSize: 13, color: "#1A3673", flex: 1, lineHeight: 18 },
+    preventiveRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: "#E0E6ED",
+    },
+    preventiveRowLast: {
+        borderBottomWidth: 0,
+    },
+    preventiveLabel: { fontSize: 15, color: "#002B5C", fontWeight: "600" },
+    preventiveDate: { fontSize: 14, color: "#666" },
+    preventiveEmptyText: { fontSize: 14, color: "#666", fontStyle: "italic", marginTop: 4 },
 });

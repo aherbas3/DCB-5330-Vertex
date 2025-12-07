@@ -11,13 +11,6 @@ class NotificationService {
         // Format: whatsapp:+14155238886 (sandbox) or whatsapp:+1YOURNUMBER
         this.whatsappFromNumber = process.env.TWILIO_WHATSAPP_NUMBER || (this.fromNumber ? `whatsapp:${this.fromNumber}` : null);
 
-        console.log('==================== TWILIO INITIALIZATION ====================');
-        console.log('Checking Twilio credentials...');
-        console.log('TWILIO_ACCOUNT_SID:', process.env.TWILIO_ACCOUNT_SID ? `${process.env.TWILIO_ACCOUNT_SID.substring(0, 10)}...` : 'NOT SET');
-        console.log('TWILIO_AUTH_TOKEN:', process.env.TWILIO_AUTH_TOKEN ? 'SET (hidden)' : 'NOT SET');
-        console.log('TWILIO_PHONE_NUMBER:', process.env.TWILIO_PHONE_NUMBER || 'NOT SET');
-        console.log('TWILIO_WHATSAPP_NUMBER:', process.env.TWILIO_WHATSAPP_NUMBER || (this.whatsappFromNumber ? 'Using phone number format' : 'NOT SET'));
-
         // Initialize Twilio client if credentials are provided
         if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
             try {
@@ -25,15 +18,11 @@ class NotificationService {
                     process.env.TWILIO_ACCOUNT_SID,
                     process.env.TWILIO_AUTH_TOKEN
                 );
-                console.log('✅ Twilio client initialized successfully');
             } catch (error) {
-                console.error('❌ Failed to initialize Twilio client:', error.message);
+                console.error('Failed to initialize Twilio client:', error.message);
                 this.client = null;
             }
-        } else {
-            console.warn('⚠️ Twilio credentials not configured. SMS notifications will be disabled.');
         }
-        console.log('===============================================================\n');
     }
 
     /**
@@ -51,14 +40,14 @@ class NotificationService {
             
             // TinyURL returns the shortened URL as plain text, or "Error" if it fails
             if (shortUrl && !shortUrl.includes('Error') && shortUrl.startsWith('http')) {
-                console.log('🔗 URL shortened:', shortUrl);
+                // URL shortened successfully
                 return shortUrl;
             } else {
-                console.warn('⚠️ URL shortening failed, using original URL');
+                console.warn('URL shortening failed, using original URL');
                 return longUrl;
             }
         } catch (error) {
-            console.error('⚠️ Error shortening URL:', error.message);
+            console.error('Error shortening URL:', error.message);
             // Return original URL if shortening fails
             return longUrl;
         }
@@ -99,7 +88,7 @@ class NotificationService {
         }
 
         // Default: try to format as +1##########
-        console.warn(`⚠️ Unexpected phone number format: ${phoneNumber}, attempting to format...`);
+        console.warn(`Unexpected phone number format: ${phoneNumber}, attempting to format...`);
         if (digitsOnly.length >= 10) {
             // Take last 10 digits and add +1
             const lastTenDigits = digitsOnly.slice(-10);
@@ -107,7 +96,7 @@ class NotificationService {
         }
 
         // If we can't format it, return original (Twilio will handle validation)
-        console.warn(`⚠️ Could not format phone number: ${phoneNumber}, using as-is`);
+        console.warn(`Could not format phone number: ${phoneNumber}, using as-is`);
         return phoneNumber.trim();
     }
 
@@ -123,7 +112,7 @@ class NotificationService {
      */
     async logNotification(userId, channel, type, body, status, errorMessage = null) {
         if (!userId) {
-            console.warn('⚠️ Cannot log notification: userId is required');
+            console.warn('Cannot log notification: userId is required');
             return;
         }
 
@@ -142,13 +131,11 @@ class NotificationService {
                 .single();
 
             if (error) {
-                console.error('⚠️ Failed to log notification to database:', error);
-            } else {
-                console.log(`📝 Notification logged: ${channel} ${type} - ${status} (ID: ${data.id})`);
+                console.error('Failed to log notification to database:', error);
             }
         } catch (error) {
             // Don't throw - logging failures shouldn't break notifications
-            console.error('⚠️ Error logging notification:', error.message);
+            console.error('Error logging notification:', error.message);
         }
     }
 
@@ -191,13 +178,13 @@ class NotificationService {
         console.log('Recipient Phone (original):', phoneNumber);
 
         if (!this.client) {
-            console.log('❌ SMS notifications disabled - Twilio not configured');
+            console.log(' SMS notifications disabled - Twilio not configured');
             console.log('==================================================================================\n');
             return { success: false, message: 'SMS service not configured' };
         }
 
         if (!phoneNumber) {
-            console.log('❌ No phone number provided');
+            console.log(' No phone number provided');
             console.log('==================================================================================\n');
             return { success: false, message: 'No phone number provided' };
         }
@@ -222,7 +209,7 @@ class NotificationService {
                 to: formattedPhoneNumber
             });
 
-            console.log('✅ SMS sent successfully!');
+            console.log(' SMS sent successfully!');
             console.log('Message SID:', result.sid);
             console.log('Status:', result.status);
             console.log('To:', result.to);
@@ -243,7 +230,7 @@ class NotificationService {
             
             return { success: true, messageSid: result.sid, messageBody: message };
         } catch (error) {
-            console.error('❌ Failed to send SMS');
+            console.error(' Failed to send SMS');
             console.error('Error Code:', error.code);
             console.error('Error Message:', error.message);
             console.error('Error Status:', error.status);
@@ -282,19 +269,19 @@ class NotificationService {
         console.log('Recipient Phone (original):', phoneNumber);
 
         if (!this.client) {
-            console.log('❌ WhatsApp notifications disabled - Twilio not configured');
+            console.log(' WhatsApp notifications disabled - Twilio not configured');
             console.log('==================================================================================\n');
             return { success: false, message: 'WhatsApp service not configured' };
         }
 
         if (!phoneNumber) {
-            console.log('❌ No phone number provided');
+            console.log(' No phone number provided');
             console.log('==================================================================================\n');
             return { success: false, message: 'No phone number provided' };
         }
 
         if (!this.whatsappFromNumber) {
-            console.log('❌ WhatsApp sender number not configured');
+            console.log(' WhatsApp sender number not configured');
             console.log('==================================================================================\n');
             return { success: false, message: 'WhatsApp sender number not configured' };
         }
@@ -320,7 +307,7 @@ class NotificationService {
                 to: whatsappToNumber
             });
 
-            console.log('✅ WhatsApp message sent successfully!');
+            console.log(' WhatsApp message sent successfully!');
             console.log('Message SID:', result.sid);
             console.log('Status:', result.status);
             console.log('To:', result.to);
@@ -341,7 +328,7 @@ class NotificationService {
             
             return { success: true, messageSid: result.sid, messageBody: message };
         } catch (error) {
-            console.error('❌ Failed to send WhatsApp message');
+            console.error(' Failed to send WhatsApp message');
             console.error('Error Code:', error.code);
             console.error('Error Message:', error.message);
             console.error('Error Status:', error.status);
@@ -376,7 +363,7 @@ class NotificationService {
      * @returns {Promise<Object>} Result object with success status
      */
     async sendAppointmentConfirmation(phoneNumber, appointmentDetails, notificationMethod = 'SMS', userId = null) {
-        console.log('📱 Notification method:', notificationMethod);
+        console.log(' Notification method:', notificationMethod);
         
         if (notificationMethod === 'WhatsApp') {
             return await this.sendAppointmentConfirmationWhatsApp(phoneNumber, appointmentDetails, userId);
@@ -386,34 +373,277 @@ class NotificationService {
         }
     }
 
-    async sendAppointmentReminder(phoneNumber, appointmentDetails) {
+    /**
+     * Build a compact reminder message for appointments
+     * @param {Object} appointmentDetails - Appointment details with providerName, date, and time
+     * @returns {string} Compact reminder message
+     */
+    buildReminderMessage(appointmentDetails) {
+        const { providerName, date, time } = appointmentDetails;
+        
+        // Build compact format: "Reminder: Appointment with {providerName} on {date} at {time}."
+        // If date already includes time (e.g., "Dec 8 3 PM"), use format "on {date}"
+        // Otherwise use format "on {date} at {time}"
+        let message;
+        if (time && !date.includes(time)) {
+            // Date and time are separate (e.g., date="Dec 8 2025", time="3 PM")
+            message = `Reminder: Appointment with ${providerName} on ${date} at ${time}.`;
+        } else {
+            // Date already includes time or time is not provided (e.g., date="Dec 8 3 PM")
+            message = `Reminder: Appointment with ${providerName} on ${date}.`;
+        }
+        
+        return message;
+    }
+
+    /**
+     * Send appointment reminder via SMS or WhatsApp
+     * @param {string} phoneNumber - Recipient phone number
+     * @param {Object} appointmentDetails - Appointment details with providerName, date, and time
+     * @param {string} notificationMethod - 'SMS' or 'WhatsApp' (default: 'SMS')
+     * @param {string|number} userId - Database user ID for logging (optional)
+     * @returns {Promise<Object>} Result object with success status and message body
+     */
+    async sendAppointmentReminder(phoneNumber, appointmentDetails, notificationMethod = 'SMS', userId = null) {
+        // Check that Twilio client exists
         if (!this.client) {
-            console.log('SMS notifications disabled - Twilio not configured');
-            return { success: false, message: 'SMS service not configured' };
+            return { success: false, message: 'Notification service not configured', messageBody: null };
+        }
+
+        // Validate phone number
+        if (!phoneNumber) {
+            return { success: false, message: 'No phone number provided', messageBody: null };
+        }
+
+        // Format phone number to E.164 format
+        const formattedPhoneNumber = this.formatPhoneNumberForTwilio(phoneNumber);
+
+        // Determine channel for logging
+        const channel = notificationMethod === 'WhatsApp' ? 'whatsapp' : 'sms';
+
+        // Build reminder message
+        let messageBody;
+        try {
+            messageBody = this.buildReminderMessage(appointmentDetails);
+        } catch (error) {
+            console.error('Failed to build reminder message:', error.message);
+            messageBody = 'Reminder: Appointment reminder message build failed.';
         }
 
         try {
-            const { providerName, date, time } = appointmentDetails;
+            let fromNumber;
+            let toNumber;
 
-            const message = `Reminder: You have an appointment tomorrow!
+            if (notificationMethod === 'WhatsApp') {
+                // WhatsApp configuration
+                if (!this.whatsappFromNumber) {
+                    // Log failed attempt
+                    if (userId) {
+                        await this.logNotification(
+                            userId,
+                            'whatsapp',
+                            'appointment_reminder',
+                            messageBody,
+                            'failed',
+                            'WhatsApp sender number not configured'
+                        );
+                    }
+                    
+                    return { success: false, error: 'WhatsApp sender number not configured', messageBody: messageBody };
+                }
 
-Provider: ${providerName}
-Date: ${date}
-Time: ${time}
-
-Please arrive 10 minutes early. Reply CANCEL to cancel.`;
+                fromNumber = this.whatsappFromNumber;
+                toNumber = `whatsapp:${formattedPhoneNumber}`;
+            } else {
+                // SMS configuration (default)
+                fromNumber = this.fromNumber;
+                toNumber = formattedPhoneNumber;
+            }
 
             const result = await this.client.messages.create({
-                body: message,
-                from: this.fromNumber,
-                to: phoneNumber
+                body: messageBody,
+                from: fromNumber,
+                to: toNumber
             });
 
-            console.log('Reminder SMS sent successfully:', result.sid);
-            return { success: true, messageSid: result.sid };
+            // Log successful notification
+            if (userId) {
+                await this.logNotification(
+                    userId,
+                    channel,
+                    'appointment_reminder',
+                    messageBody,
+                    'sent',
+                    null
+                );
+            }
+
+            return { success: true, messageSid: result.sid, messageBody: messageBody };
         } catch (error) {
-            console.error('Failed to send reminder SMS:', error);
-            return { success: false, error: error.message };
+            console.error(`Failed to send reminder (${error.code}): ${error.message}`);
+
+            // Log failed notification
+            if (userId) {
+                await this.logNotification(
+                    userId,
+                    channel,
+                    'appointment_reminder',
+                    messageBody || 'Message build failed',
+                    'failed',
+                    error.message || 'Unknown error'
+                );
+            }
+
+            return { 
+                success: false, 
+                error: error.message, 
+                messageBody: messageBody || 'Message build failed' 
+            };
+        }
+    }
+
+    /**
+     * Build a compact reminder message for preventive care
+     * @param {Object} preventiveDetails - Preventive care details with type and dueDate
+     * @returns {string} Compact preventive reminder message
+     */
+    buildPreventiveReminderMessage(preventiveDetails) {
+        const { type, dueDate } = preventiveDetails;
+        
+        // Normalize type to lowercase for consistent mapping
+        const normalizedType = (type || '').toLowerCase();
+        
+        // Map common types to friendly labels
+        const typeMap = {
+            'flu_shot': 'flu shot',
+            'annual_checkup': 'annual checkup',
+            'screening': 'screening'
+        };
+        
+        // Get friendly label or fallback to replacing underscores with spaces
+        let label = typeMap[normalizedType];
+        if (!label) {
+            // If type is missing, use default
+            if (!type) {
+                label = 'preventive care';
+            } else {
+                // Fallback: replace underscores with spaces (e.g., covid_booster → covid booster)
+                label = type.replace(/_/g, ' ');
+            }
+        }
+        
+        // Build message: "Reminder: You're due for your {label} on {dueDate}."
+        return `Reminder: You're due for your ${label} on ${dueDate}.`;
+    }
+
+    /**
+     * Send preventive care reminder via SMS or WhatsApp
+     * @param {string} phoneNumber - Recipient phone number
+     * @param {Object} preventiveDetails - Preventive care details with type and dueDate
+     * @param {string} notificationMethod - 'SMS' or 'WhatsApp' (default: 'SMS')
+     * @param {string|number} userId - Database user ID for logging (optional)
+     * @returns {Promise<Object>} Result object with success status and message body
+     */
+    async sendPreventiveReminder(phoneNumber, preventiveDetails, notificationMethod = 'SMS', userId = null) {
+        // Check that Twilio client exists
+        if (!this.client) {
+            return { success: false, message: 'Notification service not configured', messageBody: null };
+        }
+
+        // Validate phone number
+        if (!phoneNumber) {
+            return { success: false, message: 'No phone number provided', messageBody: null };
+        }
+
+        // Validate preventive details
+        if (!preventiveDetails || !preventiveDetails.dueDate) {
+            return { success: false, message: 'Missing or invalid preventive details', messageBody: null };
+        }
+
+        // Format phone number to E.164 format
+        const formattedPhoneNumber = this.formatPhoneNumberForTwilio(phoneNumber);
+
+        // Determine channel for logging
+        const channel = notificationMethod === 'WhatsApp' ? 'whatsapp' : 'sms';
+
+        // Build reminder message
+        let messageBody;
+        try {
+            messageBody = this.buildPreventiveReminderMessage(preventiveDetails);
+        } catch (error) {
+            console.error('Failed to build preventive reminder message:', error.message);
+            messageBody = 'Reminder: Preventive care reminder message build failed.';
+        }
+
+        try {
+            let fromNumber;
+            let toNumber;
+
+            if (notificationMethod === 'WhatsApp') {
+                // WhatsApp configuration
+                if (!this.whatsappFromNumber) {
+                    // Log failed attempt
+                    if (userId) {
+                        await this.logNotification(
+                            userId,
+                            'whatsapp',
+                            'preventive_reminder',
+                            messageBody,
+                            'failed',
+                            'WhatsApp sender number not configured'
+                        );
+                    }
+                    
+                    return { success: false, error: 'WhatsApp sender number not configured', messageBody: messageBody };
+                }
+
+                fromNumber = this.whatsappFromNumber;
+                toNumber = `whatsapp:${formattedPhoneNumber}`;
+            } else {
+                // SMS configuration (default)
+                fromNumber = this.fromNumber;
+                toNumber = formattedPhoneNumber;
+            }
+
+            const result = await this.client.messages.create({
+                body: messageBody,
+                from: fromNumber,
+                to: toNumber
+            });
+
+            // Log successful notification
+            if (userId) {
+                await this.logNotification(
+                    userId,
+                    channel,
+                    'preventive_reminder',
+                    messageBody,
+                    'sent',
+                    null
+                );
+            }
+
+            return { success: true, messageSid: result.sid, messageBody: messageBody };
+        } catch (error) {
+            console.error(`Failed to send preventive reminder (${error.code}): ${error.message}`);
+
+            // Log failed notification
+            if (userId) {
+                await this.logNotification(
+                    userId,
+                    channel,
+                    'preventive_reminder',
+                    messageBody || 'Message build failed',
+                    'failed',
+                    error.message || 'Unknown error'
+                );
+            }
+
+            return { 
+                success: false, 
+                error: error.message, 
+                messageBody: messageBody || 'Message build failed' 
+            };
         }
     }
 
