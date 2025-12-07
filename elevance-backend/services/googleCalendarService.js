@@ -40,7 +40,7 @@ class EmailNotificationService {
 
         try {
             // Hardcode recipient email for now
-            const recipientEmail = 'anay.badlani@gmail.com';
+            const recipientEmail = process.env.RECEIVER_GMAIL;
 
             console.log('Sending email via Resend...');
             console.log('From:', process.env.SENDER_EMAIL || 'onboarding@resend.dev');
